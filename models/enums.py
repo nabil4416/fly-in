@@ -5,7 +5,7 @@ from enum import Enum
 
 class DroneState(str, Enum):
     """Enumeration of possible drone states during simulation.
-    
+
     Attributes:
         IDLE: Drone is at the start zone waiting to begin.
         MOVING: Drone is moving between zones (normal 1-turn movement).

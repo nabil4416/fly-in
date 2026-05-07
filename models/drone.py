@@ -11,11 +11,11 @@ from models.enums import DroneState
 @dataclass
 class Drone:
     """Represent a single drone in the simulation.
-    
+
     A drone has a unique identifier, position, destination, and state.
     It follows a computed path through the network and respects movement
     costs and zone capacities during execution.
-    
+
     Attributes:
         drone_id: Unique identifier for this drone (e.g., "D1", "D2").
         current_zone: Name of the zone where the drone currently is.
@@ -36,7 +36,7 @@ class Drone:
 
     def __post_init__(self) -> None:
         """Validate drone data after initialization.
-        
+
         Raises:
             ValueError: If drone_id is empty, zones are empty, or invalid state.
         """
@@ -76,7 +76,7 @@ class Drone:
     @property
     def is_delivered(self) -> bool:
         """Check if the drone has reached its destination.
-        
+
         Returns:
             True if drone is in the destination zone and marked delivered.
         """
@@ -88,7 +88,7 @@ class Drone:
     @property
     def is_in_transit(self) -> bool:
         """Check if the drone is currently moving (including transit to restricted).
-        
+
         Returns:
             True if drone is moving or in transit to a restricted zone.
         """
@@ -100,10 +100,10 @@ class Drone:
     @property
     def next_zone(self) -> Optional[str]:
         """Get the next zone in the planned path.
-        
+
         Returns the zone immediately after the current position in the path,
         or None if no path is set or we're already at the end of the path.
-        
+
         Returns:
             Name of the next zone, or None if not available.
         """
@@ -121,12 +121,12 @@ class Drone:
 
     def set_path(self, new_path: list[str]) -> None:
         """Update the drone's planned path.
-        
+
         The path should include the current zone as the first element.
-        
+
         Args:
             new_path: Ordered list of zone names from current to destination.
-            
+
         Raises:
             ValueError: If path is empty or contains empty zone names.
         """
@@ -147,13 +147,13 @@ class Drone:
 
     def move_to(self, next_zone: str) -> None:
         """Move the drone to an adjacent zone.
-        
+
         This updates the drone's position and marks it as moving.
         Use this for normal 1-turn movements only.
-        
+
         Args:
             next_zone: Name of the destination zone.
-            
+
         Raises:
             ValueError: If next_zone is empty or not in planned path.
         """
@@ -171,12 +171,12 @@ class Drone:
 
     def start_restricted_transit(self, connection_name: str) -> None:
         """Initiate a 2-turn transit to a restricted zone.
-        
+
         The drone occupies the connection and must complete arrival next turn.
-        
+
         Args:
             connection_name: Identifier of the connection being traversed.
-            
+
         Raises:
             ValueError: If connection_name is empty.
         """
@@ -188,10 +188,10 @@ class Drone:
 
     def complete_restricted_transit(self, destination_zone: str) -> None:
         """Complete a restricted zone transit by arriving at the destination.
-        
+
         Args:
             destination_zone: Name of the restricted zone.
-            
+
         Raises:
             ValueError: If not in transit or destination_zone is empty.
         """
@@ -209,7 +209,7 @@ class Drone:
 
     def mark_delivered(self) -> None:
         """Mark the drone as successfully delivered to the end zone.
-        
+
         Raises:
             ValueError: If drone is not at the destination zone.
         """
@@ -224,7 +224,7 @@ class Drone:
 
     def set_waiting(self) -> None:
         """Mark the drone as waiting due to capacity constraints.
-        
+
         The drone will not move on this turn, waiting for space to open up.
         """
         self.state = DroneState.WAITING_FOR_CAPACITY

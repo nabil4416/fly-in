@@ -222,7 +222,7 @@ class Simulator:
             if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
                 # In transit to restricted zone, show connection
                 output_parts.append(
-                    f"{drone_id}-{drone.current_zone}→{destination}"
+                    f"{drone_id}-{drone.current_zone}-{destination}"
                 )
             else:
                 # Normal movement

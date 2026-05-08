@@ -1,7 +1,6 @@
 """Connection model representing a bidirectional link between two zones."""
 
-from dataclasses import dataclass
-from typing import Dict
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -23,7 +22,7 @@ class Connection:
     zone_a: str
     zone_b: str
     max_link_capacity: int = 1
-    metadata: Dict[str, str] = None  # type: ignore
+    metadata: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Validate connection parameters after initialization.
@@ -57,11 +56,13 @@ class Connection:
         # Validate capacity
         if not isinstance(self.max_link_capacity, int):
             raise ValueError(
-                f"max_link_capacity must be an integer, got {type(self.max_link_capacity).__name__}"  # noqa: E501
+                f"max_link_capacity must be an integer, "
+                f"got {type(self.max_link_capacity).__name__}"
             )
         if self.max_link_capacity < 1:
             raise ValueError(
-                f"max_link_capacity must be at least 1, got {self.max_link_capacity}"
+                f"max_link_capacity must be at least 1, "
+                f"got {self.max_link_capacity}"
             )
 
     def connects(self, zone_a: str, zone_b: str) -> bool:

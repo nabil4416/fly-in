@@ -43,68 +43,64 @@ The objective is to design a complete simulation engine that:
 ```bash
 git clone https://github.com/nabil4416/fly-in.git
 cd fly-in
+```
 
-    Create and activate a virtual environment:
-
-bash
-
+2. Create and activate a virtual environment:
+```bash
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
 
-    Install dependencies:
-
-bash
-
+3. Install dependencies:
+```bash
 make install
+```
 
-Running the Simulation
-bash
+### Running the Simulation
 
+```bash
 make run FILE=<input_file>
+```
 
 Example:
-bash
-
+```bash
 make run FILE=example_map.txt
+```
 
-Debugging
+### Debugging
 
 Run the simulation with Python debugger (pdb):
-bash
-
+```bash
 make debug FILE=example_map.txt
+```
 
-Code Quality
+### Code Quality
 
-    Lint code (flake8 + mypy):
-
-bash
-
+- **Lint code** (flake8 + mypy):
+```bash
 make lint
+```
 
-    Strict type checking (optional):
-
-bash
-
+- **Strict type checking** (optional):
+```bash
 make lint-strict
+```
 
-    Run unit tests:
-
-bash
-
+- **Run unit tests**:
+```bash
 make test
+```
 
-    Clean cache files:
-
-bash
-
+- **Clean cache files**:
+```bash
 make clean
+```
 
-Input File Format
+### Input File Format
 
 The simulation reads a configuration file defining the network:
-Code
 
+```
 nb_drones: 5
 start_hub: hub 0 0 [color=green]
 end_hub: goal 10 10 [color=yellow]
@@ -117,95 +113,95 @@ connection: hub-corridorA
 connection: roof1-roof2
 connection: roof2-goal
 connection: corridorA-goal [max_link_capacity=2]
+```
 
-Metadata Options:
+**Metadata Options:**
+- `zone=<type>`: Zone type (normal, blocked, restricted, priority). Default: normal
+- `color=<color>`: Visual color for terminal/graphical display
+- `max_drones=<N>`: Maximum drones in zone simultaneously. Default: 1
+- `max_link_capacity=<N>`: Maximum drones on connection simultaneously. Default: 1
 
-    zone=<type>: Zone type (normal, blocked, restricted, priority). Default: normal
-    color=<color>: Visual color for terminal/graphical display
-    max_drones=<N>: Maximum drones in zone simultaneously. Default: 1
-    max_link_capacity=<N>: Maximum drones on connection simultaneously. Default: 1
-
-Output Format
+### Output Format
 
 The simulation outputs drone movements turn-by-turn:
-Code
 
+```
 Turn 1: D1-roof1 D2-corridorA
 Turn 2: D1-roof2 D2-goal D3-roof1
 Turn 3: D1-goal
+```
 
-Format: D<id>-<destination> or D<id>-<connection> (for restricted zones in transit)
-Algorithm Choices
-1. Pathfinding: Dijkstra's Algorithm
+Format: `D<id>-<destination>` or `D<id>-<connection>` (for restricted zones in transit)
 
-Why Dijkstra?
+---
 
-    Guarantees shortest path in weighted graphs
-    Movement costs vary by zone type (normal=1, restricted=2, priority=1)
-    Deterministic and easy to explain during peer review
-    Time complexity: O((V + E) log V) with priority queue
-    Suitable for small to medium graphs (typical 42 test cases)
+## Algorithm Choices
 
-Implementation:
+### 1. Pathfinding: Dijkstra's Algorithm
 
-    No external libraries (networkx forbidden)
-    Custom heap-based priority queue (heapq module)
-    Visited set to avoid reprocessing nodes
-    Early termination when destination reached
+**Why Dijkstra?**
+- Guarantees shortest path in weighted graphs
+- Movement costs vary by zone type (normal=1, restricted=2, priority=1)
+- Deterministic and easy to explain during peer review
+- Time complexity: O((V + E) log V) with priority queue
+- Suitable for small to medium graphs (typical 42 test cases)
 
-2. Scheduling: Greedy Conflict-Avoidance
+**Implementation:**
+- No external libraries (networkx forbidden)
+- Custom heap-based priority queue (heapq module)
+- Visited set to avoid reprocessing nodes
+- Early termination when destination reached
 
-Strategy:
+### 2. Scheduling: Greedy Conflict-Avoidance
 
-    Priority 1: Complete drones already in restricted zone transit (MUST complete)
-    Priority 2: Regular drones (greedy assignment by availability)
-    Capacity Checking: Verify zone and connection capacities before assigning moves
-    Deadlock Detection: Raise error if restricted transit cannot complete
+**Strategy:**
+- **Priority 1**: Complete drones already in restricted zone transit (MUST complete)
+- **Priority 2**: Regular drones (greedy assignment by availability)
+- **Capacity Checking**: Verify zone and connection capacities before assigning moves
+- **Deadlock Detection**: Raise error if restricted transit cannot complete
 
-Complexity:
+**Complexity:**
+- O(D × Z) per turn, where D = drones, Z = zones
+- Simple and predictable for peer review
 
-    O(D × Z) per turn, where D = drones, Z = zones
-    Simple and predictable for peer review
+### 3. Movement Mechanics
 
-3. Movement Mechanics
+**Normal Movement:**
+- 1 turn to traverse (unless restricted or priority)
+- Drone moves directly to adjacent zone
+- Zone capacity checked before entry
 
-Normal Movement:
+**Restricted Zone Movement:**
+- Turn 1: Drone enters connection (occupies connection, not zone)
+- Turn 2: Drone MUST enter restricted zone (no waiting)
+- If zone full on turn 2 → Deadlock prevention (error raised)
 
-    1 turn to traverse (unless restricted or priority)
-    Drone moves directly to adjacent zone
-    Zone capacity checked before entry
+**Simultaneous Movement:**
+- All moves computed before execution
+- Drones leaving free capacity for entering drones (same turn)
+- No conflicts by design (validated before execution)
 
-Restricted Zone Movement:
+### 4. Graph Representation
 
-    Turn 1: Drone enters connection (occupies connection, not zone)
-    Turn 2: Drone MUST enter restricted zone (no waiting)
-    If zone full on turn 2 → Deadlock prevention (error raised)
-
-Simultaneous Movement:
-
-    All moves computed before execution
-    Drones leaving free capacity for entering drones (same turn)
-    No conflicts by design (validated before execution)
-
-4. Graph Representation
-
-Adjacency List with HashMap:
-Python
-
+**Adjacency List with HashMap:**
+```python
 _adjacency: dict[str, list[str]]  # zone_name → [neighbors]
 _connection_map: dict[tuple[str, str], Connection]  # (zone_a, zone_b) → Connection
+```
 
-Advantages:
+**Advantages:**
+- O(1) neighbor lookup
+- O(1) connection capacity check
+- No external library needed
+- Easy to traverse and debug
 
-    O(1) neighbor lookup
-    O(1) connection capacity check
-    No external library needed
-    Easy to traverse and debug
+---
 
-Architecture Overview
-Project Structure
-Code
+## Architecture Overview
 
+### Project Structure
+
+```
 fly-in/
 ├── models/
 │   ├── zone.py           # Zone data model
@@ -232,79 +228,93 @@ fly-in/
 ├── Makefile              # Build automation
 ├── README.md             # This file
 └── .gitignore            # Git exclusions
+```
 
-Component Responsibilities
-Component	Role
-Parser	Read and validate input file, create Zone/Connection/Drone objects
-Graph	Build adjacency list, provide neighbor/connection queries
-Pathfinder	Compute shortest paths using Dijkstra, avoid blocked zones
-Scheduler	Assign drones to paths, resolve conflicts, prevent deadlocks
-Simulator	Execute turn-by-turn, track metrics, generate output
-Main	Orchestrate all components, handle CLI args, error management
-Performance Metrics
-Optimization Goals
+### Component Responsibilities
 
-The algorithm aims to minimize total simulation turns:
+| Component | Role |
+|-----------|------|
+| **Parser** | Read and validate input file, create Zone/Connection/Drone objects |
+| **Graph** | Build adjacency list, provide neighbor/connection queries |
+| **Pathfinder** | Compute shortest paths using Dijkstra, avoid blocked zones |
+| **Scheduler** | Assign drones to paths, resolve conflicts, prevent deadlocks |
+| **Simulator** | Execute turn-by-turn, track metrics, generate output |
+| **Main** | Orchestrate all components, handle CLI args, error management |
 
-    Easy maps: < 10 turns
-    Medium maps: 10-30 turns
-    Hard maps: < 60 turns
-    Challenger (optional): < 45 turns
+---
 
-Metrics Tracked
+## Performance Metrics
 
-    Total turns to complete
-    Drones moved per turn (throughput)
-    Average turns per drone
-    Zone utilization (peak occupancy)
-    Path efficiency (cost per drone)
+### Optimization Goals
 
-Type Safety & Code Quality
-Type Hints
+The algorithm aims to minimize **total simulation turns**:
 
-    All functions have parameter and return type hints
-    All variables typed where applicable
-    Compatible with mypy --strict
+- **Easy maps**: < 10 turns
+- **Medium maps**: 10-30 turns
+- **Hard maps**: < 60 turns
+- **Challenger (optional)**: < 45 turns
 
-Linting
+### Metrics Tracked
 
-    Code follows flake8 standards
-    Line length: 88 characters (black compatible)
-    No unused imports or variables
+- Total turns to complete
+- Drones moved per turn (throughput)
+- Average turns per drone
+- Zone utilization (peak occupancy)
+- Path efficiency (cost per drone)
 
-Docstrings
+---
 
-    All classes and functions documented (Google style)
-    Explains purpose, parameters, return values, and exceptions
-    Enables IDE autocomplete and helps peer review
+## Type Safety & Code Quality
 
-Testing
+### Type Hints
+
+- All functions have parameter and return type hints
+- All variables typed where applicable
+- Compatible with `mypy --strict`
+
+### Linting
+
+- Code follows **flake8** standards
+- Line length: 88 characters (black compatible)
+- No unused imports or variables
+
+### Docstrings
+
+- All classes and functions documented (Google style)
+- Explains purpose, parameters, return values, and exceptions
+- Enables IDE autocomplete and helps peer review
+
+---
+
+## Testing
 
 Unit tests validate core functionality:
-bash
 
+```bash
 make test
+```
 
-Test Coverage:
+**Test Coverage:**
+- Parser: Valid/invalid inputs, edge cases
+- Graph: Connectivity, reachability, neighbor queries
+- Pathfinder: Shortest paths, blocked zone avoidance
+- Scheduler: Capacity constraints, conflict resolution
+- Simulator: Full end-to-end simulations
 
-    Parser: Valid/invalid inputs, edge cases
-    Graph: Connectivity, reachability, neighbor queries
-    Pathfinder: Shortest paths, blocked zone avoidance
-    Scheduler: Capacity constraints, conflict resolution
-    Simulator: Full end-to-end simulations
+---
 
-Visual Representation
-Terminal Output
+## Visual Representation
+
+### Terminal Output
 
 The simulation provides:
+- Step-by-step drone movement tracking
+- Summary statistics (turns, efficiency metrics)
+- Color-coded output (if implemented)
 
-    Step-by-step drone movement tracking
-    Summary statistics (turns, efficiency metrics)
-    Color-coded output (if implemented)
+### Example Output
 
-Example Output
-Code
-
+```
 ============================================================
 SIMULATION OUTPUT
 ============================================================
@@ -321,113 +331,123 @@ Total Drones: 3
 Drones Moved Per Turn: 2.67 avg
 Max Drones Per Turn: 3
 ============================================================
+```
 
-Future Enhancements
+### Future Enhancements
 
-    Graphical Visualization: PyGame-based network display with live drone tracking
-    Colored Terminal: Zone and drone status with ANSI colors
-    Statistics Dashboard: Real-time metrics during simulation
+- **Graphical Visualization**: PyGame-based network display with live drone tracking
+- **Colored Terminal**: Zone and drone status with ANSI colors
+- **Statistics Dashboard**: Real-time metrics during simulation
 
-Resources
-Graph Theory & Pathfinding
+---
 
-    Dijkstra's Algorithm — Foundation for shortest path computation
-    Graph Theory Basics — Adjacency list representation
-    Priority Queues — Python heapq module
+## Resources
 
-Python Best Practices
+### Graph Theory & Pathfinding
+- [Dijkstra's Algorithm](https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm) — Foundation for shortest path computation
+- [Graph Theory Basics](https://www.khanacademy.org/computing/computer-science/algorithms/graph-representation/v/representing-graphs) — Adjacency list representation
+- [Priority Queues](https://docs.python.org/3/library/heapq.html) — Python heapq module
 
-    PEP 257 Docstring Conventions
-    Type Hints Guide
-    Flake8 Code Style
-    mypy Static Type Checker
+### Python Best Practices
+- [PEP 257 Docstring Conventions](https://www.python.org/dev/peps/pep-0257/)
+- [Type Hints Guide](https://docs.python.org/3/library/typing.html)
+- [Flake8 Code Style](https://flake8.pycqa.org/en/latest/)
+- [mypy Static Type Checker](https://www.mypy-lang.org/)
 
-Project Management
+### Project Management
+- [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
+- [Makefile Basics](https://www.gnu.org/software/make/manual/make.html)
+- [Git Best Practices](https://git-scm.com/book/en/v2/Git-Basics-Getting-a-Git-Repository)
 
-    Python Virtual Environments
-    Makefile Basics
-    Git Best Practices
+### References Used
+- Official 42 School Project Specification
+- Python 3.10 Documentation
+- Graph algorithms courses (Dijkstra, BFS, DFS concepts)
 
-References Used
+---
 
-    Official 42 School Project Specification
-    Python 3.10 Documentation
-    Graph algorithms courses (Dijkstra, BFS, DFS concepts)
+## AI Usage Declaration
 
-AI Usage Declaration
-Where AI Was Used
+### Where AI Was Used
 
-Task 1: Code Generation & Scaffolding
+**Task 1: Code Generation & Scaffolding**
+- Generated initial class structures and method signatures
+- Created docstring templates (Google style)
+- Produced boilerplate for parsing and error handling
 
-    Generated initial class structures and method signatures
-    Created docstring templates (Google style)
-    Produced boilerplate for parsing and error handling
+**Task 2: Algorithm Implementation**
+- Provided Dijkstra's algorithm reference implementation
+- Helped optimize priority queue usage
+- Suggested improvements for complexity analysis
 
-Task 2: Algorithm Implementation
+**Task 3: Testing & Validation**
+- Generated unit test cases covering edge cases
+- Provided test data and expected outputs
+- Helped identify potential bugs
 
-    Provided Dijkstra's algorithm reference implementation
-    Helped optimize priority queue usage
-    Suggested improvements for complexity analysis
+**Task 4: Documentation**
+- Generated README structure and content
+- Provided algorithm explanation templates
+- Created performance benchmark descriptions
 
-Task 3: Testing & Validation
+**Task 5: Code Quality**
+- Suggested type hint improvements
+- Recommended mypy configuration
+- Provided flake8-compliant code examples
 
-    Generated unit test cases covering edge cases
-    Provided test data and expected outputs
-    Helped identify potential bugs
+### What Was NOT AI-Generated
 
-Task 4: Documentation
+- **Core Logic**: Movement mechanics, scheduling strategy, conflict resolution
+- **Architecture Decisions**: Component structure, separation of concerns
+- **Error Handling**: Custom exception hierarchy and validation logic
+- **Optimization Strategy**: Greedy scheduling, deadlock prevention
 
-    Generated README structure and content
-    Provided algorithm explanation templates
-    Created performance benchmark descriptions
-
-Task 5: Code Quality
-
-    Suggested type hint improvements
-    Recommended mypy configuration
-    Provided flake8-compliant code examples
-
-What Was NOT AI-Generated
-
-    Core Logic: Movement mechanics, scheduling strategy, conflict resolution
-    Architecture Decisions: Component structure, separation of concerns
-    Error Handling: Custom exception hierarchy and validation logic
-    Optimization Strategy: Greedy scheduling, deadlock prevention
-
-Learning Value
+### Learning Value
 
 The AI assistance accelerated development without compromising understanding. All components remain explainable and modifiable during peer review.
-Known Limitations
 
-    Single Best-Path Strategy: Scheduler uses greedy assignment (not exhaustive search)
-        Limitation: May not find optimal solution in all cases
-        Justification: Complexity acceptable for project scope
+---
 
-    No Path Caching: Each scheduling recomputes paths
-        Limitation: Inefficient for repeated simulations
-        Justification: Simplicity and correctness prioritized
+## Known Limitations
 
-    Deadlock Detection (Not Prevention):
-        Limitation: Raises error instead of replanning
-        Justification: Indicates bad input (unreachable configuration)
+1. **Single Best-Path Strategy**: Scheduler uses greedy assignment (not exhaustive search)
+   - Limitation: May not find optimal solution in all cases
+   - Justification: Complexity acceptable for project scope
 
-    No Advanced Visualization:
-        Limitation: Terminal-only output (PyGame optional)
-        Justification: Meets requirements, extensible design
+2. **No Path Caching**: Each scheduling recomputes paths
+   - Limitation: Inefficient for repeated simulations
+   - Justification: Simplicity and correctness prioritized
 
-Future Improvements
+3. **Deadlock Detection (Not Prevention)**:
+   - Limitation: Raises error instead of replanning
+   - Justification: Indicates bad input (unreachable configuration)
 
-    A Pathfinding*: Add heuristic-based optimization (with Euclidean distance)
-    Multi-Agent Routing: Sophisticated conflict resolution with lookahead
-    Path Caching: Memoize shortest paths for repeated queries
-    Interactive Visualization: PyGame interface with step-by-step replay
-    Performance Benchmarks: Automated testing against reference maps
+4. **No Advanced Visualization**:
+   - Limitation: Terminal-only output (PyGame optional)
+   - Justification: Meets requirements, extensible design
 
-License
+---
+
+## Future Improvements
+
+- **A* Pathfinding**: Add heuristic-based optimization (with Euclidean distance)
+- **Multi-Agent Routing**: Sophisticated conflict resolution with lookahead
+- **Path Caching**: Memoize shortest paths for repeated queries
+- **Interactive Visualization**: PyGame interface with step-by-step replay
+- **Performance Benchmarks**: Automated testing against reference maps
+
+---
+
+## License
 
 This project is part of the 42 curriculum and follows school guidelines.
-Author
 
-nabil4416 — 42 School Student
+---
 
-Last Updated: May 2026
+## Author
+
+**nabil4416** — 42 School Student
+
+---
+
+**Last Updated**: May 2026

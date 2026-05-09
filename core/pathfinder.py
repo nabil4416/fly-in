@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 from core.graph import Graph
-from models.zone import ZoneType
 from utils.exceptions import FlyInException
 
 
@@ -48,7 +47,8 @@ class PathfindingResult:
 
     def __repr__(self) -> str:
         """Return readable representation."""
-        path_str = " → ".join(self.path)
+        path_str = " 6 "  # Arrow as separator
+        path_str = path_str.join(self.path)
         return f"Path({path_str}) [cost={self.cost}]"
 
 
@@ -73,14 +73,7 @@ class Pathfinder:
     """
 
     def __init__(self, graph: Graph) -> None:
-        """Initialize pathfinder with a graph.
-
-        Args:
-            graph: Graph object representing the network.
-
-        Raises:
-            PathfindingError: If graph is invalid.
-        """
+        """Initialize pathfinder with a graph."""
         if not graph or not graph.zones:
             raise PathfindingError("Cannot create pathfinder with empty graph")
 
@@ -153,15 +146,11 @@ class Pathfinder:
         if start == end:
             return [PathfindingResult(path=[start], cost=0)]
 
-        # Find shortest path first
         shortest = self.find_shortest_path(start, end)
         if shortest is None:
             return []
 
         paths = [shortest]
-
-        # For now, return just the shortest path
-        # (More advanced: could find k-alternative paths using Yen's algorithm)
         return paths
 
     def get_path_cost(self, path: list[str]) -> int:
@@ -186,20 +175,17 @@ class Pathfinder:
             raise PathfindingError("Path must have at least 2 zones")
 
         total_cost = 0
-
-        # Cost is for entering each zone (skip the first zone, it's start)
         for zone_name in path[1:]:
             zone = self.graph.get_zone(zone_name)
             if zone is None:
-                raise PathfindingError(f"Zone not found in path: {zone_name}")
-
+                raise PathfindingError(
+                    f"Zone not found in path: {zone_name}"
+                )
             if zone.is_blocked:
                 raise PathfindingError(
                     f"Path contains blocked zone: {zone_name}"
                 )
-
             total_cost += zone.movement_cost
-
         return total_cost
 
     def _dijkstra(
@@ -215,82 +201,55 @@ class Pathfinder:
 
         Returns:
             Tuple of (distances_dict, predecessors_dict)
-            - distances_dict: zone_name → distance (or inf if unreachable)
-            - predecessors_dict: zone_name → previous_zone_name (for reconstruction)
+            - distances_dict: zone_name -> distance (or inf if unreachable)
+            - predecessors_dict: zone_name -> previous_zone_name (for reconstruction)
         """
-        # Initialize distances and predecessors
-        distances: dict[str, int | float] = {zone: float("inf") for zone in self.graph.zones}
+        distances: dict[str, int | float] = {
+            zone: float("inf") for zone in self.graph.zones
+        }
         distances[start] = 0
-        predecessors: dict[str, str | None] = {zone: None for zone in self.graph.zones}
-
-        # Priority queue: (distance, zone_name)
+        predecessors: dict[str, str | None] = {
+            zone: None for zone in self.graph.zones
+        }
         pq: list[tuple[int | float, str]] = [(0, start)]
         visited: set[str] = set()
 
         while pq:
             current_distance, current_zone = heapq.heappop(pq)
-
-            # Skip if already visited
             if current_zone in visited:
                 continue
-
-            # Early termination: if we reached end, no need to continue
             if current_zone == end:
                 break
-
             visited.add(current_zone)
-
-            # Skip blocked zones
             current_zone_obj = self.graph.get_zone(current_zone)
             if current_zone_obj and current_zone_obj.is_blocked:
                 continue
-
-            # Explore neighbors
             for neighbor in self.graph.get_neighbors(current_zone):
                 if neighbor in visited:
                     continue
-
-                # Skip blocked neighbors entirely
                 neighbor_obj = self.graph.get_zone(neighbor)
                 if neighbor_obj and neighbor_obj.is_blocked:
                     continue
-
-                # Calculate distance to neighbor
-                # Cost is the movement cost to ENTER the neighbor
                 movement_cost = neighbor_obj.movement_cost if neighbor_obj else 1
                 new_distance = current_distance + movement_cost
-
-                # If we found a shorter path, update it
                 if new_distance < distances[neighbor]:
                     distances[neighbor] = new_distance
                     predecessors[neighbor] = current_zone
                     heapq.heappush(pq, (new_distance, neighbor))
-
         return distances, predecessors
 
     def _reconstruct_path(
         self, end: str, predecessors: dict[str, str | None]
     ) -> list[str]:
-        """Reconstruct path from start to end using predecessor links.
-
-        Args:
-            end: Destination zone name.
-            predecessors: Dictionary of zone → previous_zone.
-
-        Returns:
-            List of zone names from start to end.
-        """
+        """Reconstruct path from start to end using predecessor links."""
         path: list[str] = []
         current = end
-
         while current is not None:
             path.append(current)
             current = predecessors[current]
-
-        # Reverse to get start → end order
         path.reverse()
         return path
 
     def __repr__(self) -> str:
         """Return readable representation."""
-        return f"Pathfinder(graph={self.graph})"
+        return f"Pathfinder(graph={self.graph})\n"

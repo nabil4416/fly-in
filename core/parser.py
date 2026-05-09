@@ -137,7 +137,9 @@ class Parser:
             return
 
         # No pattern matched
-        raise ParsingError(f"Unrecognized line format: {line}", self.current_line_number)
+        raise ParsingError(
+            f"Unrecognized line format: {line}", self.current_line_number
+        )
 
     def _try_parse_nb_drones(self, line: str) -> bool:
         """Try to parse nb_drones line.

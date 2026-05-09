@@ -101,9 +101,33 @@ def test_pathfinder_multiple_paths() -> None:
     print("✅ test_pathfinder_multiple_paths passed")
 
 
+def test_pathfinder_trivial_start_equals_end() -> None:
+    """Test trivial path where start and end are the same zone."""
+    zones = {
+        "hub": Zone("hub", 0, 0, category=ZoneCategory.START_HUB),
+        "goal": Zone("goal", 1, 1, category=ZoneCategory.END_HUB),
+    }
+    connections = [Connection("hub", "goal")]
+    graph = Graph(zones, connections)
+    pathfinder = Pathfinder(graph)
+
+    result = pathfinder.find_shortest_path("hub", "hub")
+    assert result is not None
+    assert isinstance(result, PathfindingResult)
+    assert result.path == ["hub"]
+    assert result.cost == 0
+
+    all_paths = pathfinder.find_all_paths("hub", "hub")
+    assert len(all_paths) == 1
+    assert all_paths[0].path == ["hub"]
+    assert all_paths[0].cost == 0
+    print("✅ test_pathfinder_trivial_start_equals_end passed")
+
+
 if __name__ == "__main__":
     test_pathfinder_simple_linear()
     test_pathfinder_with_restricted()
     test_pathfinder_blocked_avoidance()
     test_pathfinder_multiple_paths()
+    test_pathfinder_trivial_start_equals_end()
     print("\n✅ All pathfinder tests passed!")

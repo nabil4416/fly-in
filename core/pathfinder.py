@@ -22,7 +22,8 @@ class PathfindingResult:
 
     Attributes:
         path: List of zone names from start to destination (inclusive).
-        cost: Total movement cost in turns.
+        cost: Total movement cost in turns. For trivial path where
+            start == end, this can be 0.
     """
 
     path: list[str]
@@ -31,19 +32,17 @@ class PathfindingResult:
     def __post_init__(self) -> None:
         """Validate pathfinding result."""
         if not self.path:
-            raise PathfindingError("Path cannot be empty")
-        if len(self.path) < 2:
-            raise PathfindingError("Path must have at least start and end zone")
-        if self.cost < 1:
-            raise PathfindingError("Cost must be at least 1")
+            raise PathfindingError("Path must have at least one zone")
+        if self.cost < 0:
+            raise PathfindingError("Cost must be at least 0")
 
     def is_valid(self) -> bool:
         """Check if this is a valid path result.
 
         Returns:
-            True if path has at least 2 zones and cost is positive.
+            True if path has at least one zone and cost is non-negative.
         """
-        return len(self.path) >= 2 and self.cost >= 1
+        return len(self.path) >= 1 and self.cost >= 0
 
     def __repr__(self) -> str:
         """Return readable representation."""
@@ -93,6 +92,7 @@ class Pathfinder:
 
         Returns:
             PathfindingResult with path and cost, or None if no path exists.
+            For start == end, returns a trivial path with one zone and cost 0.
 
         Raises:
             PathfindingError: If start or end zone doesn't exist.
@@ -134,6 +134,7 @@ class Pathfinder:
 
         Returns:
             List of PathfindingResult objects, sorted by cost.
+            For start == end, returns one trivial path with cost 0.
 
         Raises:
             PathfindingError: If start or end zone doesn't exist.

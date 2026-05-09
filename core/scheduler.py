@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from core.graph import Graph
-from core.pathfinder import Pathfinder, PathfindingResult
+from core.pathfinder import Pathfinder  # PathfindingResult import removed
 from models.drone import Drone
 from models.enums import DroneState
 from models.zone import ZoneType
@@ -66,12 +66,7 @@ class Scheduler:
     """
 
     def __init__(self, graph: Graph, pathfinder: Pathfinder) -> None:
-        """Initialize scheduler with graph and pathfinder.
-
-        Args:
-            graph: Graph representation of zones and connections.
-            pathfinder: Pathfinder for computing optimal paths.
-        """
+        """Initialize scheduler with graph and pathfinder."""
         self.graph = graph
         self.pathfinder = pathfinder
 
@@ -81,19 +76,7 @@ class Scheduler:
         start_zone: str,
         end_zone: str,
     ) -> list[SchedulingResult]:
-        """Schedule all drones from start to end zone.
-
-        Args:
-            drones: List of drones to schedule.
-            start_zone: Name of the starting zone.
-            end_zone: Name of the ending zone.
-
-        Returns:
-            List of SchedulingResult objects, one per turn.
-
-        Raises:
-            SchedulingError: If scheduling fails.
-        """
+        """Schedule all drones from start to end zone."""
         if not drones:
             raise SchedulingError("Cannot schedule empty drone list")
 
@@ -136,15 +119,7 @@ class Scheduler:
     def schedule_turn(
         self, drones: list[Drone], turn_number: int
     ) -> SchedulingResult:
-        """Schedule movements for a single turn.
-
-        Args:
-            drones: List of all drones in simulation.
-            turn_number: Current turn number (1-indexed).
-
-        Returns:
-            SchedulingResult containing moves and status for this turn.
-        """
+        """Schedule movements for a single turn."""
         # Filter active drones (not delivered)
         active_drones = [d for d in drones if not d.is_delivered]
 
@@ -244,22 +219,7 @@ class Scheduler:
         zone_occupancy: dict[str, int],
         turn_number: int,
     ) -> dict[str, str]:
-        """Validate candidate moves and resolve conflicts.
-
-        Strategy:
-        1. Prioritize drones already in transit (must complete)
-        2. Prioritize drones closer to destination
-        3. Resolve capacity conflicts by delaying some drones
-
-        Args:
-            drones: List of active drones.
-            candidate_moves: Proposed moves (drone_id → zone).
-            zone_occupancy: Current occupancy of each zone.
-            turn_number: Current turn number.
-
-        Returns:
-            Dictionary of validated moves (drone_id → zone).
-        """
+        """Validate candidate moves and resolve conflicts."""
         moves: dict[str, str] = {}
 
         # Separate drones by priority
@@ -350,23 +310,12 @@ class Scheduler:
         moves: dict[str, str],
         current_occupancy: dict[str, int],
     ) -> int:
-        """Get the occupancy of a zone after all assigned moves.
-
-        Args:
-            zone_name: Name of the zone.
-            moves: Dictionary of assigned moves.
-            current_occupancy: Current occupancy before moves.
-
-        Returns:
-            Projected occupancy after all assigned moves.
-        """
+        """Get the occupancy of a zone after all assigned moves."""
         occupancy = current_occupancy.get(zone_name, 0)
-
         # Count new drones entering this zone
         for dest in moves.values():
             if dest == zone_name:
                 occupancy += 1
-
         return occupancy
 
     def _get_connection_occupancy(
@@ -376,19 +325,8 @@ class Scheduler:
         moves: dict[str, str],
         drones: list[Drone],
     ) -> int:
-        """Get the number of drones using a connection this turn.
-
-        Args:
-            zone_a: First zone of the connection.
-            zone_b: Second zone of the connection.
-            moves: Dictionary of assigned moves.
-            drones: List of all drones.
-
-        Returns:
-            Number of drones traversing this connection.
-        """
+        """Get the number of drones using a connection this turn."""
         count = 0
-
         for drone_id, dest in moves.items():
             if dest == zone_b:
                 # Find this drone
@@ -397,21 +335,10 @@ class Scheduler:
                         if drone.current_zone == zone_a:
                             count += 1
                         break
-
         return count
 
     def _execute_move(self, drone: Drone, destination: str) -> None:
-        """Execute a single drone's movement.
-
-        Handles both normal and restricted zone movements.
-
-        Args:
-            drone: Drone to move.
-            destination: Name of destination zone.
-
-        Raises:
-            SchedulingError: If move is invalid.
-        """
+        """Execute a single drone's movement."""
         destination_zone = self.graph.get_zone(destination)
         if destination_zone is None:
             raise SchedulingError(f"Zone not found: {destination}")
@@ -425,11 +352,10 @@ class Scheduler:
         else:
             # Normal move
             drone.move_to(destination)
-
             # Check if at destination
             if drone.current_zone == drone.destination_zone:
                 drone.mark_delivered()
 
     def __repr__(self) -> str:
         """Return readable representation."""
-        return f"Scheduler(graph={self.graph}, pathfinder={self.pathfinder})"
+        return f"Scheduler(graph={self.graph}, pathfinder={self.pathfinder})\n"

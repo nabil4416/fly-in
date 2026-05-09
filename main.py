@@ -61,9 +61,11 @@ def main() -> int:
     try:
         parser = Parser()
         input_data = parser.parse_file(input_file)
-        print_info(f"✓ Parsed: {input_data.num_drones} drones, "
-                   f"{len(input_data.zones)} zones, "
-                   f"{len(input_data.connections)} connections")
+        print_info(
+            f"✓ Parsed: {input_data.num_drones} drones, "
+            f"{len(input_data.zones)} zones, "
+            f"{len(input_data.connections)} connections"
+        )
     except ParsingError as e:
         print_error(f"Parsing failed: {e}")
         return 1
@@ -75,7 +77,7 @@ def main() -> int:
     print_info("Building graph representation...")
     try:
         graph = Graph(input_data.zones, input_data.connections)
-        print_info(f"✓ Graph built successfully")
+        print_info("✓ Graph built successfully")
     except GraphError as e:
         print_error(f"Graph construction failed: {e}")
         return 1
@@ -87,14 +89,15 @@ def main() -> int:
     print_info("Validating path connectivity...")
     try:
         if not graph.is_reachable(
-            input_data.start_zone.name, input_data.end_zone.name
+            input_data.start_zone.name,
+            input_data.end_zone.name,
         ):
             print_error(
                 f"No path exists from {input_data.start_zone.name} "
                 f"to {input_data.end_zone.name}"
             )
             return 1
-        print_info(f"✓ Path exists from start to end zone")
+        print_info("✓ Path exists from start to end zone")
     except GraphError as e:
         print_error(f"Connectivity validation failed: {e}")
         return 1
@@ -116,7 +119,7 @@ def main() -> int:
     print_info("Initializing pathfinder...")
     try:
         pathfinder = Pathfinder(graph)
-        print_info(f"✓ Pathfinder ready")
+        print_info("✓ Pathfinder ready")
     except Exception as e:
         print_error(f"Pathfinder initialization failed: {e}")
         return 1
@@ -125,7 +128,7 @@ def main() -> int:
     print_info("Initializing scheduler...")
     try:
         scheduler = Scheduler(graph, pathfinder)
-        print_info(f"✓ Scheduler ready")
+        print_info("✓ Scheduler ready")
     except Exception as e:
         print_error(f"Scheduler initialization failed: {e}")
         return 1
@@ -141,7 +144,9 @@ def main() -> int:
             input_data.end_zone.name,
         )
         state = simulator.run()
-        print_info(f"✓ Simulation completed in {state.metrics.total_turns} turns")
+        print_info(
+            f"✓ Simulation completed in {state.metrics.total_turns} turns"
+        )
     except SchedulingError as e:
         print_error(f"Scheduling failed: {e}")
         return 1

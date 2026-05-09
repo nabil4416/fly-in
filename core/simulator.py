@@ -1,26 +1,23 @@
 """Simulation engine for coordinating drone movements turn-by-turn.
 
 The simulator manages the complete lifecycle of a simulation, tracking
-drone states, enforcing constraints, and generating output in the
-specified format.
+ drone states, enforcing constraints, and generating output in the
+ specified format.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 from core.graph import Graph
 from core.scheduler import Scheduler, SchedulingResult
 from models.drone import Drone
 from models.enums import DroneState
-from models.zone import ZoneType
 from utils.exceptions import FlyInException
 
 
 class SimulationError(FlyInException):
     """Exception raised during simulation execution."""
-
     pass
 
 
@@ -49,7 +46,6 @@ class SimulationMetrics:
         if not self.drones_per_turn:
             self.avg_drones_per_turn = 0.0
             return
-
         self.total_drones_moved = sum(self.drones_per_turn)
         self.max_drones_per_turn = max(self.drones_per_turn)
         self.avg_drones_per_turn = self.total_drones_moved / len(
@@ -133,7 +129,6 @@ class Simulator:
         """
         if not drones:
             raise SimulationError("Cannot simulate with no drones")
-
         self.graph = graph
         self.scheduler = scheduler
         self.start_zone = start_zone
@@ -144,7 +139,6 @@ class Simulator:
             drones=[d for d in drones],  # Copy list
             metrics=SimulationMetrics(),
         )
-
         # Output history
         self.turn_output: list[str] = []
 
@@ -161,21 +155,17 @@ class Simulator:
             SimulationError: If simulation fails during execution.
         """
         self.state.is_running = True
-
         try:
             result = self.scheduler.schedule_all_drones(
                 self.state.drones,
                 self.start_zone,
                 self.end_zone,
             )
-
             # Record all scheduling results
             self.state.moves = result
-
             # Process each turn for metrics and output
             for turn_idx, scheduling_result in enumerate(result, start=1):
                 self._process_turn(scheduling_result, turn_idx)
-
             # Mark simulation as complete
             if all(d.is_delivered for d in self.state.drones):
                 self.state.is_completed = True
@@ -184,29 +174,20 @@ class Simulator:
                 raise SimulationError(
                     "Simulation ended but not all drones delivered"
                 )
-
         except Exception as e:
             self.state.is_running = False
             raise SimulationError(f"Simulation failed: {e}") from e
-
         finally:
             self.state.is_running = False
             self._calculate_metrics()
-
         return self.state
 
     def _process_turn(
         self, scheduling_result: SchedulingResult, turn_number: int
     ) -> None:
-        """Process a single turn and generate output.
-
-        Args:
-            scheduling_result: Result from scheduler for this turn.
-            turn_number: Current turn number (1-indexed).
-        """
+        """Process a single turn and generate output."""
         # Build output line for this turn
         output_parts = []
-
         for drone_id, destination in scheduling_result.moves.items():
             # Find the drone
             drone = None
@@ -214,10 +195,8 @@ class Simulator:
                 if d.drone_id == drone_id:
                     drone = d
                     break
-
             if drone is None:
                 continue
-
             # Determine movement type
             if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
                 # In transit to restricted zone, show connection
@@ -227,12 +206,10 @@ class Simulator:
             else:
                 # Normal movement
                 output_parts.append(f"{drone_id}-{destination}")
-
         # Add turn to output if there were movements
         if output_parts:
             turn_line = f"Turn {turn_number}: {' '.join(output_parts)}"
             self.turn_output.append(turn_line)
-
         # Track metrics
         self.state.metrics.drones_per_turn.append(
             len(scheduling_result.moves)
@@ -242,7 +219,6 @@ class Simulator:
     def _calculate_metrics(self) -> None:
         """Calculate final simulation metrics."""
         self.state.metrics.calculate_averages()
-
         # Track zone utilization by analyzing drone paths
         zone_peak_occupancy: dict[str, int] = {}
         for drone in self.state.drones:
@@ -250,45 +226,33 @@ class Simulator:
                 zone_peak_occupancy[zone_name] = (
                     zone_peak_occupancy.get(zone_name, 0) + 1
                 )
-
         self.state.metrics.zone_utilization = zone_peak_occupancy
 
     def get_output(self) -> str:
-        """Get formatted simulation output.
-
-        Returns:
-            Multi-line string with turn-by-turn drone movements.
-        """
+        """Get formatted simulation output."""
         return "\n".join(self.turn_output)
 
     def get_summary(self) -> str:
-        """Get simulation summary with metrics.
-
-        Returns:
-            Formatted summary string.
-        """
+        """Get simulation summary with metrics."""
         if not self.state.is_completed:
             return "Simulation not completed"
-
         lines = [
             "=" * 60,
             "SIMULATION SUMMARY",
             "=" * 60,
             f"Total Turns: {self.state.metrics.total_turns}",
             f"Total Drones: {len(self.state.drones)}",
-            f"Drones Moved Per Turn: {self.state.metrics.avg_drones_per_turn:.2f} avg",
+            (
+                f"Drones Moved Per Turn: "
+                f"{self.state.metrics.avg_drones_per_turn:.2f} avg"
+            ),
             f"Max Drones Per Turn: {self.state.metrics.max_drones_per_turn}",
             "=" * 60,
         ]
-
         return "\n".join(lines)
 
     def get_state(self) -> SimulationState:
-        """Get current simulation state snapshot.
-
-        Returns:
-            Current SimulationState.
-        """
+        """Get current simulation state snapshot."""
         return self.state
 
     def __repr__(self) -> str:

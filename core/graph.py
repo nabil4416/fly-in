@@ -6,7 +6,7 @@ from collections import deque
 from typing import Optional
 
 from models.connection import Connection
-from models.zone import Zone, ZoneType
+from models.zone import Zone
 from utils.exceptions import FlyInException
 
 
@@ -46,10 +46,10 @@ class Graph:
         self.zones = zones
         self.connections = connections
 
-        # Build adjacency list: zone_name → [neighbor_names]
+        # Build adjacency list: zone_name -> [neighbor_names]
         self._adjacency: dict[str, list[str]] = self._build_adjacency_list()
 
-        # Build connection map for O(1) lookups: (zone_a, zone_b) → Connection
+        # Build connection map for O(1) lookups: (zone_a, zone_b) -> Connection
         self._connection_map: dict[tuple[str, str], Connection] = (
             self._build_connection_map()
         )
@@ -283,16 +283,11 @@ class Graph:
         )
 
     def debug_info(self) -> str:
-        """Return detailed debug information about the graph structure.
-
-        Returns:
-            Formatted string with zone and connection details.
-        """
-        lines = [f"Graph Debug Info:"]
+        """Return detailed debug information about the graph structure."""
+        lines = ["Graph Debug Info:"]
         lines.append(f"  Total zones: {len(self.zones)}")
         lines.append(f"  Total connections: {len(self.connections)}")
         lines.append("\nZones:")
-
         for zone_name in sorted(self.zones.keys()):
             zone = self.zones[zone_name]
             neighbors = self.get_neighbors(zone_name)
@@ -300,7 +295,6 @@ class Graph:
                 f"  {zone_name}: type={zone.zone_type.value}, "
                 f"capacity={zone.max_drones}, neighbors={neighbors}"
             )
-
         lines.append("\nConnections:")
         for conn in self.connections:
             capacity = (
@@ -308,6 +302,5 @@ class Graph:
                 if conn.max_link_capacity != 1
                 else ""
             )
-            lines.append(f"  {conn.zone_a} ↔ {conn.zone_b} {capacity}")
-
+            lines.append(f"  {conn.zone_a} 2 {conn.zone_b} {capacity}")
         return "\n".join(lines)

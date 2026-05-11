@@ -1,4 +1,12 @@
-"""Custom exceptions for the Fly-in project."""
+"""Custom exceptions for the Fly-in project.
+
+Provides a clear exception hierarchy for different error categories:
+- Parsing errors (input file validation)
+- Graph errors (connectivity, structure)
+- Pathfinding errors (no route found)
+- Scheduling errors (conflict resolution)
+- Simulation errors (runtime issues)
+"""
 
 
 class FlyInException(Exception):
@@ -23,3 +31,27 @@ class ParsingError(FlyInException):
             full_message = f"Parsing error: {message}"
         super().__init__(full_message)
         self.line_number = line_number
+
+
+class GraphError(FlyInException):
+    """Exception raised when graph operations fail."""
+
+    pass
+
+
+class PathfindingError(FlyInException):
+    """Exception raised when pathfinding fails."""
+
+    pass
+
+
+class SchedulingError(FlyInException):
+    """Exception raised when scheduling conflicts occur."""
+
+    pass
+
+
+class SimulationError(FlyInException):
+    """Exception raised during simulation execution."""
+
+    pass

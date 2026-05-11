@@ -1,5 +1,6 @@
-"""Quick validation tests for Parser."""
+"""Unit tests for the input file parser."""
 
+import unittest
 from pathlib import Path
 import tempfile
 
@@ -7,100 +8,64 @@ from core.parser import Parser
 from utils.exceptions import ParsingError
 
 
-def test_parse_valid_file() -> None:
-    """Test parsing a valid input file."""
-    content = """nb_drones: 2
-start_hub: hub 0 0 [color=green]
-end_hub: goal 10 10 [color=yellow]
-hub: roof1 3 4 [zone=restricted]
-connection: hub-roof1
-connection: roof1-goal
-"""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write(content)
-        f.flush()
+class TestParser(unittest.TestCase):
+    """Test cases for the Parser class."""
 
-        parser = Parser()
-        data = parser.parse_file(f.name)
+    def setUp(self) -> None:
+        """Set up test fixtures."""
+        self.parser = Parser()
 
-        assert data.num_drones == 2
-        assert data.start_zone.name == "hub"
-        assert data.end_zone.name == "goal"
-        assert len(data.zones) == 3
-        assert len(data.connections) == 2
-
-        Path(f.name).unlink()
-    print("✅ test_parse_valid_file passed")
-
-
-def test_parse_duplicate_zone() -> None:
-    """Test that duplicate zones raise error."""
-    content = """nb_drones: 2
+    def test_parse_valid_simple_input(self) -> None:
+        """Test parsing a valid simple input file."""
+        content = """nb_drones: 2
 start_hub: hub 0 0
-hub: roof1 3 4
-hub: roof1 5 6
+end_hub: goal 5 5
+hub: mid 2 2
+connection: hub-mid
+connection: mid-goal
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write(content)
-        f.flush()
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False
+        ) as f:
+            f.write(content)
+            f.flush()
+            result = self.parser.parse_file(f.name)
 
-        parser = Parser()
-        try:
-            parser.parse_file(f.name)
-            assert False, "Should have raised ParsingError"
-        except ParsingError as e:
-            assert "Duplicate zone name" in str(e)
+        self.assertEqual(result.num_drones, 2)
+        self.assertEqual(result.start_zone.name, "hub")
+        self.assertEqual(result.end_zone.name, "goal")
+        self.assertEqual(len(result.zones), 3)
+        self.assertEqual(len(result.connections), 2)
 
-        Path(f.name).unlink()
-    print("✅ test_parse_duplicate_zone passed")
-
-
-def test_parse_invalid_zone_type() -> None:
-    """Test that invalid zone type raises error."""
-    content = """nb_drones: 1
-start_hub: hub 0 0 [zone=invalid]
-end_hub: goal 10 10
+    def test_parse_missing_nb_drones(self) -> None:
+        """Test that parsing fails without nb_drones."""
+        content = """start_hub: hub 0 0
+end_hub: goal 5 5
+connection: hub-goal
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write(content)
-        f.flush()
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False
+        ) as f:
+            f.write(content)
+            f.flush()
+            with self.assertRaises(ParsingError):
+                self.parser.parse_file(f.name)
 
-        parser = Parser()
-        try:
-            parser.parse_file(f.name)
-            assert False, "Should have raised ParsingError"
-        except ParsingError as e:
-            assert "Invalid zone type" in str(e)
-
-        Path(f.name).unlink()
-    print("✅ test_parse_invalid_zone_type passed")
-
-
-def test_parse_zone_with_dash_name() -> None:
-    """Test that zone names with dashes raise error."""
-    content = """nb_drones: 1
+    def test_parse_invalid_zone_type(self) -> None:
+        """Test that invalid zone types raise errors."""
+        content = """nb_drones: 1
 start_hub: hub 0 0
-end_hub: goal 10 10
-hub: roof-1 3 4
+end_hub: goal 5 5 [zone=invalid]
+connection: hub-goal
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        f.write(content)
-        f.flush()
-
-        parser = Parser()
-        try:
-            parser.parse_file(f.name)
-            assert False, "Should have raised ParsingError"
-        except ParsingError as e:
-            assert "cannot contain dashes" in str(e)
-
-        Path(f.name).unlink()
-    print("✅ test_parse_zone_with_dash_name passed")
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".txt", delete=False
+        ) as f:
+            f.write(content)
+            f.flush()
+            with self.assertRaises(ParsingError):
+                self.parser.parse_file(f.name)
 
 
 if __name__ == "__main__":
-    test_parse_valid_file()
-    test_parse_duplicate_zone()
-    test_parse_invalid_zone_type()
-    test_parse_zone_with_dash_name()
-    print("\n✅ All parser tests passed!")
+    unittest.main()

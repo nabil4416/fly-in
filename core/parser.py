@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 from models.connection import Connection
 from models.drone import Drone
@@ -343,7 +343,9 @@ class Parser:
             )
 
         # Check for duplicate (bidirectional)
-        conn_key: tuple[str, str] = tuple(sorted([zone_a, zone_b]))
+        conn_key: tuple[str, str] = cast(
+            tuple[str, str], tuple(sorted([zone_a, zone_b]))
+        )
         if conn_key in self.seen_connections:
             raise ParsingError(
                 f"Duplicate connection: {zone_a}-{zone_b}",

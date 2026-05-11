@@ -21,7 +21,7 @@ class Drone:
         current_zone: Name of the zone where the drone currently is.
         destination_zone: Name of the target zone (end hub).
         state: Current state of the drone (idle, moving, etc.).
-        path: Ordered list of zone names to traverse (including current zone).
+        path: Ordered list of zone names to traverse (including current).
         turns_until_arrival: For restricted zones, turns needed to arrive.
         metadata: Optional string key-value pairs for extensibility.
     """
@@ -38,21 +38,30 @@ class Drone:
         """Validate drone data after initialization.
 
         Raises:
-            ValueError: If drone_id is empty, zones are empty, or invalid state.
+            ValueError: If drone_id is empty, zones are empty, or
+                invalid state.
         """
         # Validate drone_id
         if not self.drone_id or not isinstance(self.drone_id, str):
             raise ValueError("drone_id must be a non-empty string")
 
         # Validate zone names
-        if not self.current_zone or not isinstance(self.current_zone, str):
+        if not self.current_zone or not isinstance(
+            self.current_zone, str
+        ):
             raise ValueError("current_zone must be a non-empty string")
-        if not self.destination_zone or not isinstance(self.destination_zone, str):
-            raise ValueError("destination_zone must be a non-empty string")
+        if not self.destination_zone or not isinstance(
+            self.destination_zone, str
+        ):
+            raise ValueError(
+                "destination_zone must be a non-empty string"
+            )
 
         # Validate state
         if not isinstance(self.state, DroneState):
-            raise ValueError(f"state must be a DroneState enum, got {type(self.state)}")
+            raise ValueError(
+                f"state must be a DroneState enum, got {type(self.state)}"
+            )
 
         # Validate turns_until_arrival
         if not isinstance(self.turns_until_arrival, int):
@@ -68,17 +77,22 @@ class Drone:
 
         # Validate path is a list of strings
         if not isinstance(self.path, list):
-            raise ValueError(f"path must be a list, got {type(self.path).__name__}")
+            raise ValueError(
+                f"path must be a list, got {type(self.path).__name__}"
+            )
         for zone_name in self.path:
             if not isinstance(zone_name, str) or not zone_name:
-                raise ValueError("path must contain non-empty strings")
+                raise ValueError(
+                    "path must contain non-empty strings"
+                )
 
     @property
     def is_delivered(self) -> bool:
         """Check if the drone has reached its destination.
 
         Returns:
-            True if drone is in the destination zone and marked delivered.
+            True if drone is in the destination zone and marked
+            delivered.
         """
         return (
             self.state == DroneState.DELIVERED
@@ -87,7 +101,9 @@ class Drone:
 
     @property
     def is_in_transit(self) -> bool:
-        """Check if the drone is currently moving (including transit to restricted).
+        """Check if the drone is currently moving.
+
+        Includes transit to restricted zones.
 
         Returns:
             True if drone is moving or in transit to a restricted zone.
@@ -101,8 +117,8 @@ class Drone:
     def next_zone(self) -> Optional[str]:
         """Get the next zone in the planned path.
 
-        Returns the zone immediately after the current position in the path,
-        or None if no path is set or we're already at the end of the path.
+        Returns the zone immediately after the current position in the
+        path, or None if no path is set or we're already at the end.
 
         Returns:
             Name of the next zone, or None if not available.
@@ -125,7 +141,8 @@ class Drone:
         The path should include the current zone as the first element.
 
         Args:
-            new_path: Ordered list of zone names from current to destination.
+            new_path: Ordered list of zone names from current to
+                destination.
 
         Raises:
             ValueError: If path is empty or contains empty zone names.
@@ -135,12 +152,14 @@ class Drone:
 
         for zone_name in new_path:
             if not isinstance(zone_name, str) or not zone_name:
-                raise ValueError("path must contain non-empty strings")
+                raise ValueError(
+                    "path must contain non-empty strings"
+                )
 
         if new_path[0] != self.current_zone:
             raise ValueError(
-                f"First zone in path must be current zone '{self.current_zone}', "
-                f"got '{new_path[0]}'"
+                f"First zone in path must be current zone "
+                f"'{self.current_zone}', got '{new_path[0]}'"
             )
 
         self.path = new_path
@@ -172,22 +191,30 @@ class Drone:
     def start_restricted_transit(self, connection_name: str) -> None:
         """Initiate a 2-turn transit to a restricted zone.
 
-        The drone occupies the connection and must complete arrival next turn.
+        The drone occupies the connection and must complete arrival
+        next turn.
 
         Args:
-            connection_name: Identifier of the connection being traversed.
+            connection_name: Identifier of the connection being
+                traversed.
 
         Raises:
             ValueError: If connection_name is empty.
         """
-        if not connection_name or not isinstance(connection_name, str):
-            raise ValueError("connection_name must be a non-empty string")
+        if not connection_name or not isinstance(
+            connection_name, str
+        ):
+            raise ValueError(
+                "connection_name must be a non-empty string"
+            )
 
         self.state = DroneState.IN_TRANSIT_RESTRICTED
         self.turns_until_arrival = 1  # Must arrive next turn
 
-    def complete_restricted_transit(self, destination_zone: str) -> None:
-        """Complete a restricted zone transit by arriving at the destination.
+    def complete_restricted_transit(
+        self, destination_zone: str
+    ) -> None:
+        """Complete a restricted zone transit by arriving.
 
         Args:
             destination_zone: Name of the restricted zone.
@@ -200,8 +227,12 @@ class Drone:
                 f"Cannot complete transit: drone is in {self.state} state"
             )
 
-        if not destination_zone or not isinstance(destination_zone, str):
-            raise ValueError("destination_zone must be a non-empty string")
+        if not destination_zone or not isinstance(
+            destination_zone, str
+        ):
+            raise ValueError(
+                "destination_zone must be a non-empty string"
+            )
 
         self.current_zone = destination_zone
         self.state = DroneState.MOVING
@@ -225,7 +256,8 @@ class Drone:
     def set_waiting(self) -> None:
         """Mark the drone as waiting due to capacity constraints.
 
-        The drone will not move on this turn, waiting for space to open up.
+        The drone will not move on this turn, waiting for space to open
+        up.
         """
         self.state = DroneState.WAITING_FOR_CAPACITY
 

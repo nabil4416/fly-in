@@ -63,7 +63,9 @@ class Parser:
         r"^\s*(start_hub|end_hub|hub)\s*:\s*(\w+)\s+(-?\d+)\s+(-?\d+)"
         r"\s*(?:\[(.*?)\])?\s*$"
     )
-    CONNECTION_PATTERN = r"^\s*connection\s*:\s*(\w+)-(\w+)\s*(?:\[(.*?)\])?\s*$"
+    CONNECTION_PATTERN = (
+        r"^\s*connection\s*:\s*(\w+)-(\w+)\s*(?:\[(.*?)\])?\s*$"
+    )
     METADATA_PATTERN = r"(\w+)=([^\s\]]+)"
     COMMENT_PATTERN = r"^\s*#.*$"
     EMPTY_PATTERN = r"^\s*$"
@@ -107,6 +109,10 @@ class Parser:
         # Validate final state
         self._validate_final_state()
 
+        # At this point, start_zone and end_zone are guaranteed to exist
+        if self.start_zone is None or self.end_zone is None:
+            raise ParsingError("start_hub and end_hub must be defined")
+
         return InputData(
             num_drones=self.num_drones,
             start_zone=self.start_zone,
@@ -125,7 +131,9 @@ class Parser:
             ParsingError: If line is malformed.
         """
         # Skip empty lines and comments
-        if re.match(self.EMPTY_PATTERN, line) or re.match(self.COMMENT_PATTERN, line):
+        empty_match = re.match(self.EMPTY_PATTERN, line)
+        comment_match = re.match(self.COMMENT_PATTERN, line)
+        if empty_match or comment_match:
             return
 
         # Try each pattern
@@ -138,7 +146,8 @@ class Parser:
 
         # No pattern matched
         raise ParsingError(
-            f"Unrecognized line format: {line}", self.current_line_number
+            f"Unrecognized line format: {line}",
+            self.current_line_number,
         )
 
     def _try_parse_nb_drones(self, line: str) -> bool:
@@ -239,7 +248,8 @@ class Parser:
         except ValueError as e:
             raise ParsingError(
                 f"Invalid zone type: {zone_type_str}. "
-                f"Must be one of: {', '.join(zt.value for zt in ZoneType)}",
+                f"Must be one of: "
+                f"{', '.join(zt.value for zt in ZoneType)}",
                 self.current_line_number,
             ) from e
 
@@ -333,7 +343,7 @@ class Parser:
             )
 
         # Check for duplicate (bidirectional)
-        conn_key = tuple(sorted([zone_a, zone_b]))
+        conn_key: tuple[str, str] = tuple(sorted([zone_a, zone_b]))
         if conn_key in self.seen_connections:
             raise ParsingError(
                 f"Duplicate connection: {zone_a}-{zone_b}",

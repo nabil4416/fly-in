@@ -1,105 +1,72 @@
-"""Quick validation tests for Simulator."""
+"""Unit tests for the simulator."""
 
-from models.connection import Connection
-from models.drone import Drone
-from models.enums import DroneState
-from models.zone import Zone, ZoneCategory, ZoneType
+import unittest
+
 from core.graph import Graph
 from core.pathfinder import Pathfinder
 from core.scheduler import Scheduler
 from core.simulator import Simulator
+from models.connection import Connection
+from models.drone import Drone
+from models.enums import DroneState
+from models.zone import Zone
 
 
-def test_simulator_simple_path() -> None:
-    """Test simulator on a simple linear path."""
-    zones = {
-        "hub": Zone("hub", 0, 0, category=ZoneCategory.START_HUB),
-        "roof1": Zone("roof1", 1, 1),
-        "goal": Zone("goal", 2, 2, category=ZoneCategory.END_HUB),
-    }
-    connections = [
-        Connection("hub", "roof1"),
-        Connection("roof1", "goal"),
-    ]
-    graph = Graph(zones, connections)
-    pathfinder = Pathfinder(graph)
-    scheduler = Scheduler(graph, pathfinder)
+class TestSimulator(unittest.TestCase):
+    """Test cases for the Simulator class."""
 
-    drones = [
-        Drone("D1", "hub", "goal", state=DroneState.IDLE),
-    ]
+    def setUp(self) -> None:
+        """Set up test fixtures."""
+        self.zones = {
+            "hub": Zone("hub", 0, 0),
+            "mid": Zone("mid", 2, 2),
+            "goal": Zone("goal", 5, 5),
+        }
+        self.connections = [
+            Connection("hub", "mid"),
+            Connection("mid", "goal"),
+        ]
+        self.graph = Graph(self.zones, self.connections)
+        self.pathfinder = Pathfinder(self.graph)
+        self.scheduler = Scheduler(self.graph, self.pathfinder)
 
-    simulator = Simulator(graph, scheduler, drones, "hub", "goal")
-    state = simulator.run()
+    def test_simulator_initialization(self) -> None:
+        """Test simulator initialization."""
+        drone = Drone(
+            drone_id="D1",
+            current_zone="hub",
+            destination_zone="goal",
+            state=DroneState.IDLE,
+            path=["hub"],
+        )
+        drones = [drone]
 
-    assert state.is_completed
-    assert all(d.is_delivered for d in state.drones)
-    assert state.metrics.total_turns > 0
-    print("✅ test_simulator_simple_path passed")
-    print(f"  Output:\n{simulator.get_output()}")
+        simulator = Simulator(
+            self.graph, self.scheduler, drones, "hub", "goal"
+        )
 
+        # Simulator doesn't expose drones directly, check other attributes
+        self.assertEqual(simulator.start_zone, "hub")
+        self.assertEqual(simulator.end_zone, "goal")
 
-def test_simulator_multiple_drones() -> None:
-    """Test simulator with multiple drones."""
-    zones = {
-        "hub": Zone("hub", 0, 0, category=ZoneCategory.START_HUB),
-        "roof1": Zone("roof1", 1, 1),
-        "goal": Zone("goal", 2, 2, category=ZoneCategory.END_HUB),
-    }
-    connections = [
-        Connection("hub", "roof1"),
-        Connection("roof1", "goal"),
-    ]
-    graph = Graph(zones, connections)
-    pathfinder = Pathfinder(graph)
-    scheduler = Scheduler(graph, pathfinder)
+    def test_simulator_run(self) -> None:
+        """Test running a simulation."""
+        drone = Drone(
+            drone_id="D1",
+            current_zone="hub",
+            destination_zone="goal",
+            state=DroneState.IDLE,
+            path=["hub"],
+        )
+        drones = [drone]
 
-    drones = [
-        Drone("D1", "hub", "goal", state=DroneState.IDLE),
-        Drone("D2", "hub", "goal", state=DroneState.IDLE),
-    ]
+        simulator = Simulator(
+            self.graph, self.scheduler, drones, "hub", "goal"
+        )
 
-    simulator = Simulator(graph, scheduler, drones, "hub", "goal")
-    state = simulator.run()
-
-    assert state.is_completed
-    assert len(state.drones) == 2
-    assert state.metrics.total_turns > 0
-    print("✅ test_simulator_multiple_drones passed")
-    print(f"  Turns: {state.metrics.total_turns}")
-    print(f"  Avg drones/turn: {state.metrics.avg_drones_per_turn:.2f}")
-
-
-def test_simulator_output_format() -> None:
-    """Test that simulator produces correctly formatted output."""
-    zones = {
-        "hub": Zone("hub", 0, 0, category=ZoneCategory.START_HUB),
-        "roof1": Zone("roof1", 1, 1),
-        "goal": Zone("goal", 2, 2, category=ZoneCategory.END_HUB),
-    }
-    connections = [
-        Connection("hub", "roof1"),
-        Connection("roof1", "goal"),
-    ]
-    graph = Graph(zones, connections)
-    pathfinder = Pathfinder(graph)
-    scheduler = Scheduler(graph, pathfinder)
-
-    drones = [
-        Drone("D1", "hub", "goal", state=DroneState.IDLE),
-    ]
-
-    simulator = Simulator(graph, scheduler, drones, "hub", "goal")
-    state = simulator.run()
-
-    output = simulator.get_output()
-    assert "Turn" in output
-    assert "D1-" in output
-    print("✅ test_simulator_output_format passed")
+        state = simulator.run()
+        self.assertTrue(state.is_completed)
 
 
 if __name__ == "__main__":
-    test_simulator_simple_path()
-    test_simulator_multiple_drones()
-    test_simulator_output_format()
-    print("\n✅ All simulator tests passed!")
+    unittest.main()

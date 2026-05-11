@@ -36,8 +36,8 @@ class PathfindingResult:
         """Validate pathfinding result.
 
         Validation rules:
-        - A trivial path (start == end) may be represented as a single-element
-          list [start] with cost == 0.
+        - A trivial path (start == end) may be represented as a
+          single-element list [start] with cost == 0.
         - A non-trivial path must have at least two zones and cost >= 1.
         """
         if not self.path:
@@ -56,7 +56,9 @@ class PathfindingResult:
     def __repr__(self) -> str:
         """Return readable representation."""
         path_str = " → ".join(self.path)
-        return f"PathfindingResult(path={path_str}, cost={self.cost})"
+        return (
+            f"PathfindingResult(path={path_str}, cost={self.cost})"
+        )
 
 
 class Pathfinder:
@@ -105,16 +107,22 @@ class Pathfinder:
         if source not in self.graph.zones:
             raise PathfindingError(f"Source zone '{source}' not found")
         if destination not in self.graph.zones:
-            raise PathfindingError(f"Destination zone '{destination}' not found")
+            raise PathfindingError(
+                f"Destination zone '{destination}' not found"
+            )
 
         # Special case: source == destination
         if source == destination:
             return PathfindingResult(path=[source], cost=0)
 
-        # Dijkstra's algorithm
-        distances: dict[str, int] = {zone: float("inf") for zone in self.graph.zones}
+        # Initialize Dijkstra's algorithm
+        distances: dict[str, int] = {
+            zone: 10000 for zone in self.graph.zones
+        }
         distances[source] = 0
-        previous: dict[str, str | None] = {zone: None for zone in self.graph.zones}
+        previous: dict[str, str | None] = {
+            zone: None for zone in self.graph.zones
+        }
         visited: set[str] = set()
 
         # Priority queue: (cost, zone_name)
@@ -131,7 +139,9 @@ class Pathfinder:
             # Found destination
             if current_zone == destination:
                 path = self._reconstruct_path(previous, destination)
-                return PathfindingResult(path=path, cost=distances[destination])
+                return PathfindingResult(
+                    path=path, cost=distances[destination]
+                )
 
             # Explore neighbors
             neighbors = self.graph.get_neighbors(current_zone)
@@ -212,8 +222,8 @@ class Pathfinder:
         """Find multiple shortest paths (for load balancing).
 
         This is a simplified multi-path finder that may return paths
-        with the same cost or slightly longer paths. Useful for distributing
-        drones across multiple routes.
+        with the same cost or slightly longer paths. Useful for
+        distributing drones across multiple routes.
 
         Args:
             source: Starting zone name.
@@ -230,7 +240,7 @@ class Pathfinder:
             raise PathfindingError("max_paths must be at least 1")
 
         # For now, just return the shortest path
-        # This can be extended to find alternative paths with similar costs
+        # This can be extended to find alternative paths
         try:
             shortest = self.find_shortest_path(source, destination)
             return [shortest]

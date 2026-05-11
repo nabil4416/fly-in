@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from core.graph import Graph
-from core.pathfinder import Pathfinder  # PathfindingResult import removed
+from core.pathfinder import Pathfinder, PathfindingResult
 from models.drone import Drone
 from models.enums import DroneState
 from models.zone import ZoneType
@@ -49,7 +49,8 @@ class SchedulingResult:
         """Return readable representation."""
         return (
             f"SchedulingResult(turn={self.turn_number}, "
-            f"moves={len(self.moves)}, waiting={len(self.waiting_drones)}, "
+            f"moves={len(self.moves)}, "
+            f"waiting={len(self.waiting_drones)}, "
             f"completed={len(self.completed_drones)})"
         )
 
@@ -83,8 +84,10 @@ class Scheduler:
         # Initialize paths for all drones
         for drone in drones:
             try:
-                result = self.pathfinder.find_shortest_path(
-                    start_zone, end_zone
+                result: PathfindingResult = (
+                    self.pathfinder.find_shortest_path(
+                        start_zone, end_zone
+                    )
                 )
                 if result is None:
                     raise SchedulingError(
@@ -106,12 +109,13 @@ class Scheduler:
             and turn < max_turns
         ):
             turn += 1
-            result = self.schedule_turn(drones, turn)
-            results.append(result)
+            scheduling_result = self.schedule_turn(drones, turn)
+            results.append(scheduling_result)
 
             if turn >= max_turns:
                 raise SchedulingError(
-                    f"Simulation exceeded {max_turns} turns (possible deadlock)"
+                    f"Simulation exceeded {max_turns} turns "
+                    f"(possible deadlock)"
                 )
 
         return results
@@ -147,7 +151,8 @@ class Scheduler:
                 next_zone = drone.next_zone
                 if next_zone is None:
                     raise SchedulingError(
-                        f"Drone {drone.drone_id} in transit but no next zone"
+                        f"Drone {drone.drone_id} in transit "
+                        f"but no next zone"
                     )
                 candidate_moves[drone.drone_id] = next_zone
                 continue
@@ -285,10 +290,14 @@ class Scheduler:
             )
 
             # Check connection capacity
-            conn = self.graph.get_connection(drone.current_zone, next_zone)
+            conn = self.graph.get_connection(
+                drone.current_zone, next_zone
+            )
             if conn is not None:
-                current_link_occupancy = self._get_connection_occupancy(
-                    drone.current_zone, next_zone, moves, drones
+                current_link_occupancy = (
+                    self._get_connection_occupancy(
+                        drone.current_zone, next_zone, moves, drones
+                    )
                 )
                 if current_link_occupancy >= conn.max_link_capacity:
                     # Connection is saturated
@@ -337,7 +346,9 @@ class Scheduler:
                         break
         return count
 
-    def _execute_move(self, drone: Drone, destination: str) -> None:
+    def _execute_move(
+        self, drone: Drone, destination: str
+    ) -> None:
         """Execute a single drone's movement."""
         destination_zone = self.graph.get_zone(destination)
         if destination_zone is None:
@@ -358,4 +369,7 @@ class Scheduler:
 
     def __repr__(self) -> str:
         """Return readable representation."""
-        return f"Scheduler(graph={self.graph}, pathfinder={self.pathfinder})\n"
+        return (
+            f"Scheduler(graph={self.graph}, "
+            f"pathfinder={self.pathfinder})\n"
+        )

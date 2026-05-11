@@ -1,7 +1,6 @@
 """Unit tests for the input file parser."""
 
 import unittest
-from pathlib import Path
 import tempfile
 
 from core.parser import Parser

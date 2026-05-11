@@ -7,16 +7,18 @@ from dataclasses import dataclass, field
 class Connection:
     """Represents a bidirectional connection between two zones.
 
-    A connection links two zones and defines the capacity for drone movement
-    between them. Zone names cannot contain dashes or spaces, as dashes are
-    used in the connection syntax and spaces would break parsing.
+    A connection links two zones and defines the capacity for drone
+    movement between them. Zone names cannot contain dashes or spaces,
+    as dashes are used in the connection syntax and spaces would break
+    parsing.
 
     Attributes:
         zone_a: Name of the first zone.
         zone_b: Name of the second zone.
         max_link_capacity: Maximum drones that can traverse this connection
             simultaneously. Defaults to 1 and must be positive.
-        metadata: Optional dictionary of string key-value pairs for extensibility.
+        metadata: Optional dictionary of string key-value pairs for
+            extensibility.
     """
 
     zone_a: str
@@ -36,7 +38,8 @@ class Connection:
             raise ValueError("zone_a must be a non-empty string")
         if "-" in self.zone_a or " " in self.zone_a:
             raise ValueError(
-                f"Zone name '{self.zone_a}' cannot contain dashes or spaces"
+                f"Zone name '{self.zone_a}' cannot contain dashes "
+                f"or spaces"
             )
 
         # Validate zone_b
@@ -44,7 +47,8 @@ class Connection:
             raise ValueError("zone_b must be a non-empty string")
         if "-" in self.zone_b or " " in self.zone_b:
             raise ValueError(
-                f"Zone name '{self.zone_b}' cannot contain dashes or spaces"
+                f"Zone name '{self.zone_b}' cannot contain dashes "
+                f"or spaces"
             )
 
         # Validate zones are different
@@ -89,7 +93,8 @@ class Connection:
             zone_name: Name of the zone to check.
 
         Returns:
-            True if the zone is one end of this connection, False otherwise.
+            True if the zone is one end of this connection,
+            False otherwise.
         """
         return self.zone_a == zone_name or self.zone_b == zone_name
 
@@ -103,7 +108,8 @@ class Connection:
             Name of the other zone in this connection.
 
         Raises:
-            ValueError: If the given zone_name is not part of this connection.
+            ValueError: If the given zone_name is not part of this
+                connection.
         """
         if self.zone_a == zone_name:
             return self.zone_b
@@ -111,8 +117,8 @@ class Connection:
             return self.zone_a
         else:
             raise ValueError(
-                f"Zone '{zone_name}' is not part of this connection between "
-                f"'{self.zone_a}' and '{self.zone_b}'"
+                f"Zone '{zone_name}' is not part of this connection "
+                f"between '{self.zone_a}' and '{self.zone_b}'"
             )
 
     def key(self) -> tuple[str, str]:

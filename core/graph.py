@@ -28,7 +28,9 @@ class Graph:
         connections: List of bidirectional connections between zones.
     """
 
-    def __init__(self, zones: dict[str, Zone], connections: list[Connection]) -> None:
+    def __init__(
+        self, zones: dict[str, Zone], connections: list[Connection]
+    ) -> None:
         """Initialize the graph from zones and connections.
 
         Args:
@@ -47,9 +49,11 @@ class Graph:
         self.connections = connections
 
         # Build adjacency list: zone_name -> [neighbor_names]
-        self._adjacency: dict[str, list[str]] = self._build_adjacency_list()
+        self._adjacency: dict[str, list[str]] = (
+            self._build_adjacency_list()
+        )
 
-        # Build connection map for O(1) lookups: (zone_a, zone_b) -> Connection
+        # Build connection map for O(1) lookups
         self._connection_map: dict[tuple[str, str], Connection] = (
             self._build_connection_map()
         )
@@ -122,11 +126,13 @@ class Graph:
             # Warn if blocked zones are involved (they shouldn't be traversed)
             if self.zones[conn.zone_a].is_blocked:
                 raise GraphError(
-                    f"Cannot create connection to blocked zone: {conn.zone_a}"
+                    f"Cannot create connection to blocked zone: "
+                    f"{conn.zone_a}"
                 )
             if self.zones[conn.zone_b].is_blocked:
                 raise GraphError(
-                    f"Cannot create connection to blocked zone: {conn.zone_b}"
+                    f"Cannot create connection to blocked zone: "
+                    f"{conn.zone_b}"
                 )
 
     def get_neighbors(self, zone_name: str) -> list[str]:
@@ -240,7 +246,8 @@ class Graph:
             zone_name: Name of the zone.
 
         Returns:
-            Cost in turns (1 for normal/priority, 2 for restricted, 0 for blocked).
+            Cost in turns. 1 for normal/priority, 2 for restricted,
+            0 for blocked.
 
         Raises:
             GraphError: If zone does not exist.
@@ -251,7 +258,9 @@ class Graph:
 
         return zone.movement_cost
 
-    def get_connection_capacity(self, zone_a: str, zone_b: str) -> Optional[int]:
+    def get_connection_capacity(
+        self, zone_a: str, zone_b: str
+    ) -> Optional[int]:
         """Get the maximum capacity of a connection.
 
         Args:
@@ -302,5 +311,5 @@ class Graph:
                 if conn.max_link_capacity != 1
                 else ""
             )
-            lines.append(f"  {conn.zone_a} 2 {conn.zone_b} {capacity}")
+            lines.append(f"  {conn.zone_a} 2 {conn.zone_b} {capacity}")
         return "\n".join(lines)

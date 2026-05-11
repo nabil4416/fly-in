@@ -2,7 +2,7 @@
 
 from models.connection import Connection
 from models.zone import Zone, ZoneCategory, ZoneType
-from core.graph import Graph, GraphError
+from core.graph import Graph
 
 
 def test_graph_creation() -> None:
@@ -79,7 +79,8 @@ def test_is_reachable() -> None:
     graph = Graph(zones, connections)
 
     assert graph.is_reachable("hub", "goal")
-    assert not graph.is_reachable("goal", "hub")  # graph is not symmetric in meaning
+    # Connections are bidirectional, so goal is reachable from hub
+    assert graph.is_reachable("goal", "hub")
     print("✅ test_is_reachable passed")
 
 

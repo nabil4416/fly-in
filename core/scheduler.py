@@ -70,6 +70,9 @@ class Scheduler:
         """Initialize scheduler with graph and pathfinder."""
         self.graph = graph
         self.pathfinder = pathfinder
+        self.start_zone: Optional[str] = None
+        self.end_zone: Optional[str] = None
+        self._regular_rotation_offset: int = 0
 
     def schedule_all_drones(
         self,
@@ -80,6 +83,9 @@ class Scheduler:
         """Schedule all drones from start to end zone."""
         if not drones:
             raise SchedulingError("Cannot schedule empty drone list")
+
+        self.start_zone = start_zone
+        self.end_zone = end_zone
 
         # Initialize paths for all drones
         for drone in drones:
@@ -102,7 +108,12 @@ class Scheduler:
         # Simulate turn by turn
         results: list[SchedulingResult] = []
         turn = 0
-        max_turns = 10000  # Prevent infinite loops
+        max_turns = 10000  # Hard safety limit
+
+        # Progress-based deadlock/starvation detection.
+        delivered_count = sum(1 for d in drones if d.is_delivered)
+        turns_without_delivery_progress = 0
+        max_turns_without_delivery_progress = max(50, len(drones) * 8)
 
         while (
             not all(drone.is_delivered for drone in drones)
@@ -112,11 +123,35 @@ class Scheduler:
             scheduling_result = self.schedule_turn(drones, turn)
             results.append(scheduling_result)
 
-            if turn >= max_turns:
+            new_delivered_count = sum(1 for d in drones if d.is_delivered)
+            if new_delivered_count > delivered_count:
+                delivered_count = new_delivered_count
+                turns_without_delivery_progress = 0
+            else:
+                turns_without_delivery_progress += 1
+
+            if (
+                turns_without_delivery_progress
+                >= max_turns_without_delivery_progress
+            ):
+                undelivered = [
+                    d.drone_id for d in drones if not d.is_delivered
+                ]
                 raise SchedulingError(
-                    f"Simulation exceeded {max_turns} turns "
-                    f"(possible deadlock)"
+                    "Deadlock/starvation detected: "
+                    f"no delivery progress for "
+                    f"{turns_without_delivery_progress} turns. "
+                    f"Delivered={delivered_count}/{len(drones)}. "
+                    f"Undelivered drones: {', '.join(undelivered)}"
                 )
+
+        if turn >= max_turns and not all(
+            drone.is_delivered for drone in drones
+        ):
+            raise SchedulingError(
+                f"Simulation exceeded {max_turns} turns "
+                f"(possible deadlock)"
+            )
 
         return results
 
@@ -130,8 +165,8 @@ class Scheduler:
         # Track zone occupancy for this turn
         zone_occupancy: dict[str, int] = {}
 
-        # Calculate zone capacities
-        for zone_name, zone in self.graph.zones.items():
+        # Initialize occupancies
+        for zone_name in self.graph.zones:
             zone_occupancy[zone_name] = 0
 
         # Count current occupancy
@@ -143,9 +178,6 @@ class Scheduler:
         # Compute candidate moves
         candidate_moves: dict[str, Optional[str]] = {}
         for drone in active_drones:
-            if drone.is_delivered:
-                continue
-
             # Handle restricted zone transit completion
             if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
                 next_zone = drone.next_zone
@@ -174,7 +206,6 @@ class Scheduler:
                 raise SchedulingError(f"Zone not found: {next_zone}")
 
             if next_zone_obj.is_blocked:
-                # Path is blocked, should have been avoided by pathfinder
                 raise SchedulingError(
                     f"Drone {drone.drone_id} path includes blocked zone: "
                     f"{next_zone}"
@@ -192,9 +223,6 @@ class Scheduler:
         waiting = []
 
         for drone in active_drones:
-            if drone.is_delivered:
-                continue
-
             move_to = moves.get(drone.drone_id)
 
             if move_to is None:
@@ -208,6 +236,8 @@ class Scheduler:
             else:
                 # Execute move
                 self._execute_move(drone, move_to)
+                if drone.is_delivered:
+                    completed.append(drone.drone_id)
 
         return SchedulingResult(
             moves=moves,
@@ -225,15 +255,15 @@ class Scheduler:
         turn_number: int,
     ) -> dict[str, str]:
         """Validate candidate moves and resolve conflicts."""
+        _ = turn_number  # reserved for future debug/telemetry usage
+
         moves: dict[str, str] = {}
 
         # Separate drones by priority
-        in_transit = []
-        regular = []
+        in_transit: list[Drone] = []
+        regular: list[Drone] = []
 
         for drone in drones:
-            if drone.is_delivered:
-                continue
             if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
                 in_transit.append(drone)
             else:
@@ -272,8 +302,17 @@ class Scheduler:
                 zone_occupancy.get(next_zone, 0) + 1
             )
 
-        # Process regular drones (greedy assignment)
-        for drone in regular:
+        # Process regular drones (greedy assignment with round-robin rotation)
+        if regular:
+            offset = self._regular_rotation_offset % len(regular)
+            ordered_regular = regular[offset:] + regular[:offset]
+            self._regular_rotation_offset = (
+                self._regular_rotation_offset + 1
+            ) % len(regular)
+        else:
+            ordered_regular = regular
+
+        for drone in ordered_regular:
             next_zone = candidate_moves.get(drone.drone_id)
 
             if next_zone is None:
@@ -319,13 +358,13 @@ class Scheduler:
         moves: dict[str, str],
         current_occupancy: dict[str, int],
     ) -> int:
-        """Get the occupancy of a zone after all assigned moves."""
-        occupancy = current_occupancy.get(zone_name, 0)
-        # Count new drones entering this zone
-        for dest in moves.values():
-            if dest == zone_name:
-                occupancy += 1
-        return occupancy
+        """Get projected occupancy for a zone during assignment.
+
+        NOTE: current_occupancy is already updated when a move is assigned,
+        so we should NOT add moves.values() again (that would double-count).
+        """
+        _ = moves
+        return current_occupancy.get(zone_name, 0)
 
     def _get_connection_occupancy(
         self,

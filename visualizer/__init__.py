@@ -1,4 +1,5 @@
-"""Visualizer package for Fly-in drone simulation.
+"""Visualization package for Fly-in."""
 
-Contains terminal and graphical visualization modules.
-"""
+from .plotly_visualizer import PlotlyVisualizer
+
+__all__ = ["PlotlyVisualizer"]

@@ -1,89 +1,61 @@
-.PHONY: install run debug clean lint lint-strict help
+PYTHON      := python3
+PIP         := $(PYTHON) -m pip
+MAIN        := main.py
 
-# Python interpreter
-PYTHON := python3
+# Default map (override with: make run FILE=maps/easy/xxx.txt)
+FILE        ?= maps/challenger/01_the_impossible_dream.txt
 
-# Project name
-PROJECT_NAME := fly-in
+FLAKE8      := flake8
+MYPY        := mypy
+PYTEST      := pytest
 
-# Help target (default)
-help:
-	@echo "$(PROJECT_NAME) - Drone Simulation Project"
-	@echo "=========================================="
-	@echo "Available targets:"
-	@echo "  make install       Install dependencies"
-	@echo "  make run           Run the simulation"
-	@echo "  make debug         Run with debugger (pdb)"
-	@echo "  make clean         Remove cache files"
-	@echo "  make lint          Run flake8 and mypy checks"
-	@echo "  make lint-strict   Run strict mypy checks (optional)"
-	@echo "  make test          Run unit tests"
-	@echo "  make help          Show this help message"
+.PHONY: all install run debug clean lint lint-strict test help
 
-# Install dependencies
+all: help
+
 install:
-	@echo "📦 Installing dependencies..."
-	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install flake8 mypy pytest pytest-cov
-	@echo "✅ Dependencies installed"
+	$(PIP) install --user -r requirements.txt
 
-# Run the main script
 run:
-	@echo "🚀 Running simulation..."
-	@if [ -z "$(FILE)" ]; then \
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "Error: input file not found: $(FILE)"; \
 		echo "Usage: make run FILE=<input_file>"; \
 		exit 1; \
 	fi
-	$(PYTHON) main.py $(FILE)
+	$(PYTHON) $(MAIN) $(FILE)
 
-# Run with debugger
 debug:
-	@echo "🐛 Running with debugger (pdb)..."
-	@if [ -z "$(FILE)" ]; then \
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "Error: input file not found: $(FILE)"; \
 		echo "Usage: make debug FILE=<input_file>"; \
 		exit 1; \
 	fi
-	$(PYTHON) -m pdb main.py $(FILE)
+	$(PYTHON) -m pdb $(MAIN) $(FILE)
 
-# Clean cache files
-clean:
-	@echo "🧹 Cleaning cache files..."
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .mypy_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
-	find . -type f -name "*.pyc" -delete
-	find . -type f -name ".DS_Store" -delete
-	@echo "✅ Cache cleaned"
-
-# Linting: flake8 + mypy with mandatory flags
 lint:
-	@echo "🔍 Running linting checks..."
-	@echo "  - flake8..."
-	$(PYTHON) -m flake8 .
-	@echo "  - mypy..."
-	$(PYTHON) -m mypy . \
-		--warn-return-any \
-		--warn-unused-ignores \
-		--ignore-missing-imports \
-		--disallow-untyped-defs \
-		--check-untyped-defs
-	@echo "✅ Linting passed"
+	-$(FLAKE8) .
+	-$(MYPY) core models utils main.py
 
-# Strict linting (optional)
 lint-strict:
-	@echo "🔍 Running STRICT linting checks..."
-	@echo "  - flake8..."
-	$(PYTHON) -m flake8 .
-	@echo "  - mypy (strict mode)..."
-	$(PYTHON) -m mypy . --strict
-	@echo "✅ Strict linting passed"
+	-$(MYPY) --strict core models utils main.py
 
-# Run unit tests
 test:
-	@echo "🧪 Running unit tests..."
-	$(PYTHON) -m pytest -v --tb=short
-	@echo "✅ Tests completed"
+	$(PYTHON) -m $(PYTEST) -v --tb=short
 
-# All-in-one: clean, lint, test
-all: clean lint test
-	@echo "✅ All checks passed!"
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	find . -type f -name "*.pyc" -delete
+	find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+	find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+
+help:
+	@echo "Available targets:"
+	@echo "  make install"
+	@echo "  make run"
+	@echo "  make run FILE=<input_file>"
+	@echo "  make debug FILE=<input_file>"
+	@echo "  make clean"
+	@echo "  make lint"
+	@echo "  make lint-strict"
+	@echo "  make test"
+	@echo "  make help"

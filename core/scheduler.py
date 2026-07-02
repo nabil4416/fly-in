@@ -393,18 +393,43 @@ class Scheduler:
         if destination_zone is None:
             raise SchedulingError(f"Zone not found: {destination}")
 
-        # Check if restricted
-        if destination_zone.zone_type == ZoneType.RESTRICTED:
-            # Start restricted transit
-            drone.start_restricted_transit(
-                f"{drone.current_zone}-{destination}"
-            )
-        else:
-            # Normal move
-            drone.move_to(destination)
-            # Check if at destination
+        # Case 1: drone is already in restricted transit -> complete arrival
+        if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
+            try:
+                drone.complete_restricted_transit(destination)
+            except ValueError as e:
+                raise SchedulingError(
+                    f"Failed to complete restricted transit for "
+                    f"{drone.drone_id}: {e}"
+                ) from e
+
             if drone.current_zone == drone.destination_zone:
                 drone.mark_delivered()
+            return
+
+        # Case 2: entering a restricted zone starts a 2-turn transit
+        if destination_zone.zone_type == ZoneType.RESTRICTED:
+            try:
+                drone.start_restricted_transit(
+                    f"{drone.current_zone}-{destination}"
+                )
+            except ValueError as e:
+                raise SchedulingError(
+                    f"Failed to start restricted transit for "
+                    f"{drone.drone_id}: {e}"
+                ) from e
+            return
+
+        # Case 3: normal move
+        try:
+            drone.move_to(destination)
+        except ValueError as e:
+            raise SchedulingError(
+                f"Invalid move for {drone.drone_id} to {destination}: {e}"
+            ) from e
+
+        if drone.current_zone == drone.destination_zone:
+            drone.mark_delivered()
 
     def __repr__(self) -> str:
         """Return readable representation."""

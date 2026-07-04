@@ -36,10 +36,13 @@ class SchedulingResult:
     """
 
     moves: dict[str, str]
+    move_outputs: dict[str, str]
     waiting_drones: list[str]
     completed_drones: list[str]
     turn_number: int
     is_valid: bool
+    zone_occupancy: dict[str, int]
+    connection_usage: dict[str, int]
 
     def has_moves(self) -> bool:
         """Check if any drones moved in this turn."""
@@ -87,30 +90,84 @@ class Scheduler:
         self.start_zone = start_zone
         self.end_zone = end_zone
 
-        # Initialize paths for all drones
+        initial_states = {
+            drone.drone_id: (
+                drone.current_zone,
+                drone.destination_zone,
+                drone.state,
+                list(drone.path),
+                drone.turns_until_arrival,
+            )
+            for drone in drones
+        }
+
+        candidate_paths = self.pathfinder.find_all_shortest_paths(
+            start_zone,
+            end_zone,
+            max_paths=max(1, min(len(drones), 8)),
+        )
+        if not candidate_paths:
+            raise SchedulingError(
+                f"No path found from {start_zone} to {end_zone}"
+            )
+
+        path_attempts = [candidate_paths]
+        if len(candidate_paths) > 1:
+            path_attempts.append([candidate_paths[0]])
+
+        last_error: SchedulingError | None = None
+        for paths in path_attempts:
+            self._reset_drones(drones, initial_states)
+            self._assign_paths(drones, paths)
+            try:
+                return self._run_turn_loop(drones)
+            except SchedulingError as e:
+                last_error = e
+
+        if last_error is not None:
+            raise last_error
+        raise SchedulingError("Scheduling failed unexpectedly")
+
+    def _assign_paths(
+        self,
+        drones: list[Drone],
+        paths: list[PathfindingResult],
+    ) -> None:
+        """Assign candidate paths to drones."""
         for drone in drones:
             try:
-                result: PathfindingResult = (
-                    self.pathfinder.find_shortest_path(
-                        start_zone, end_zone
-                    )
-                )
-                if result is None:
-                    raise SchedulingError(
-                        f"No path found from {start_zone} to {end_zone}"
-                    )
+                result = paths[
+                    (int(drone.drone_id[1:]) - 1) % len(paths)
+                ]
                 drone.set_path(result.path)
             except Exception as e:
                 raise SchedulingError(
                     f"Failed to compute path for {drone.drone_id}: {e}"
                 ) from e
 
-        # Simulate turn by turn
+    def _reset_drones(
+        self,
+        drones: list[Drone],
+        initial_states: dict[
+            str,
+            tuple[str, str, DroneState, list[str], int],
+        ],
+    ) -> None:
+        """Restore drones before a fallback scheduling attempt."""
+        for drone in drones:
+            state = initial_states[drone.drone_id]
+            drone.current_zone = state[0]
+            drone.destination_zone = state[1]
+            drone.state = state[2]
+            drone.path = list(state[3])
+            drone.turns_until_arrival = state[4]
+
+    def _run_turn_loop(self, drones: list[Drone]) -> list[SchedulingResult]:
+        """Run the scheduling loop for the currently assigned paths."""
         results: list[SchedulingResult] = []
         turn = 0
-        max_turns = 10000  # Hard safety limit
+        max_turns = 10000
 
-        # Progress-based deadlock/starvation detection.
         delivered_count = sum(1 for d in drones if d.is_delivered)
         turns_without_delivery_progress = 0
         max_turns_without_delivery_progress = max(50, len(drones) * 8)
@@ -171,6 +228,8 @@ class Scheduler:
 
         # Count current occupancy
         for drone in active_drones:
+            if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
+                continue
             zone_occupancy[drone.current_zone] = (
                 zone_occupancy.get(drone.current_zone, 0) + 1
             )
@@ -214,9 +273,10 @@ class Scheduler:
             candidate_moves[drone.drone_id] = next_zone
 
         # Validate and assign moves
-        moves = self._validate_and_assign_moves(
+        moves, connection_usage = self._validate_and_assign_moves(
             active_drones, candidate_moves, zone_occupancy, turn_number
         )
+        move_outputs = self._format_move_outputs(active_drones, moves)
 
         # Execute moves
         completed = []
@@ -241,10 +301,13 @@ class Scheduler:
 
         return SchedulingResult(
             moves=moves,
+            move_outputs=move_outputs,
             waiting_drones=waiting,
             completed_drones=completed,
             turn_number=turn_number,
             is_valid=True,
+            zone_occupancy=dict(zone_occupancy),
+            connection_usage=connection_usage,
         )
 
     def _validate_and_assign_moves(
@@ -253,11 +316,13 @@ class Scheduler:
         candidate_moves: dict[str, Optional[str]],
         zone_occupancy: dict[str, int],
         turn_number: int,
-    ) -> dict[str, str]:
+    ) -> tuple[dict[str, str], dict[str, int]]:
         """Validate candidate moves and resolve conflicts."""
         _ = turn_number  # reserved for future debug/telemetry usage
 
         moves: dict[str, str] = {}
+        connection_usage: dict[str, int] = {}
+        restricted_arrivals: dict[str, int] = {}
 
         # Separate drones by priority
         in_transit: list[Drone] = []
@@ -287,7 +352,7 @@ class Scheduler:
                 raise SchedulingError(f"Zone not found: {next_zone}")
 
             current_occupancy = self._get_future_occupancy(
-                next_zone, moves, zone_occupancy
+                next_zone, zone_occupancy
             )
 
             if not next_zone_obj.has_capacity(current_occupancy):
@@ -297,15 +362,23 @@ class Scheduler:
                     f"{next_zone} (capacity full)"
                 )
 
-            moves[drone.drone_id] = next_zone
-            zone_occupancy[next_zone] = (
-                zone_occupancy.get(next_zone, 0) + 1
+            self._assign_move(
+                drone,
+                next_zone,
+                moves,
+                zone_occupancy,
+                connection_usage,
             )
 
         # Process regular drones (greedy assignment with round-robin rotation)
         if regular:
-            offset = self._regular_rotation_offset % len(regular)
-            ordered_regular = regular[offset:] + regular[:offset]
+            ordered_regular = sorted(
+                regular,
+                key=lambda drone: (
+                    -self._path_progress(drone),
+                    drone.drone_id,
+                ),
+            )
             self._regular_rotation_offset = (
                 self._regular_rotation_offset + 1
             ) % len(regular)
@@ -325,65 +398,121 @@ class Scheduler:
 
             # Check capacity
             current_occupancy = self._get_future_occupancy(
-                next_zone, moves, zone_occupancy
+                next_zone, zone_occupancy
             )
+
+            if next_zone_obj.zone_type == ZoneType.RESTRICTED:
+                current_occupancy += restricted_arrivals.get(next_zone, 0)
 
             # Check connection capacity
             conn = self.graph.get_connection(
                 drone.current_zone, next_zone
             )
             if conn is not None:
-                current_link_occupancy = (
-                    self._get_connection_occupancy(
-                        drone.current_zone, next_zone, moves, drones
-                    )
-                )
+                conn_key = self._connection_key(drone.current_zone, next_zone)
+                current_link_occupancy = connection_usage.get(conn_key, 0)
                 if current_link_occupancy >= conn.max_link_capacity:
                     # Connection is saturated
                     continue
 
             if next_zone_obj.has_capacity(current_occupancy):
                 # Assign move
-                moves[drone.drone_id] = next_zone
-                zone_occupancy[next_zone] = (
-                    zone_occupancy.get(next_zone, 0) + 1
+                self._assign_move(
+                    drone,
+                    next_zone,
+                    moves,
+                    zone_occupancy,
+                    connection_usage,
                 )
+                if next_zone_obj.zone_type == ZoneType.RESTRICTED:
+                    restricted_arrivals[next_zone] = (
+                        restricted_arrivals.get(next_zone, 0) + 1
+                    )
             # else: drone waits (stays in current zone)
 
-        return moves
+        return moves, connection_usage
 
     def _get_future_occupancy(
         self,
         zone_name: str,
-        moves: dict[str, str],
         current_occupancy: dict[str, int],
     ) -> int:
         """Get projected occupancy for a zone during assignment.
 
-        NOTE: current_occupancy is already updated when a move is assigned,
-        so we should NOT add moves.values() again (that would double-count).
+        current_occupancy is updated as moves are assigned: leaving drones
+        decrement their source zone and arriving drones increment destination.
         """
-        _ = moves
         return current_occupancy.get(zone_name, 0)
 
-    def _get_connection_occupancy(
+    def _assign_move(
         self,
-        zone_a: str,
-        zone_b: str,
+        drone: Drone,
+        destination: str,
         moves: dict[str, str],
+        zone_occupancy: dict[str, int],
+        connection_usage: dict[str, int],
+    ) -> None:
+        """Assign a move and update projected capacities."""
+        moves[drone.drone_id] = destination
+
+        conn_key = self._connection_key(drone.current_zone, destination)
+        connection_usage[conn_key] = connection_usage.get(conn_key, 0) + 1
+
+        if drone.state != DroneState.IN_TRANSIT_RESTRICTED:
+            zone_occupancy[drone.current_zone] = max(
+                0,
+                zone_occupancy.get(drone.current_zone, 0) - 1,
+            )
+
+        destination_zone = self.graph.get_zone(destination)
+        if destination_zone is None:
+            raise SchedulingError(f"Zone not found: {destination}")
+        if (
+            drone.state != DroneState.IN_TRANSIT_RESTRICTED
+            and destination_zone.zone_type == ZoneType.RESTRICTED
+        ):
+            return
+
+        zone_occupancy[destination] = (
+            zone_occupancy.get(destination, 0) + 1
+        )
+
+    def _connection_key(self, zone_a: str, zone_b: str) -> str:
+        """Return a stable bidirectional connection key."""
+        return "-".join(sorted([zone_a, zone_b]))
+
+    def _path_progress(self, drone: Drone) -> int:
+        """Return the current index of the drone in its path."""
+        try:
+            return drone.path.index(drone.current_zone)
+        except ValueError:
+            return -1
+
+    def _format_move_outputs(
+        self,
         drones: list[Drone],
-    ) -> int:
-        """Get the number of drones using a connection this turn."""
-        count = 0
-        for drone_id, dest in moves.items():
-            if dest == zone_b:
-                # Find this drone
-                for drone in drones:
-                    if drone.drone_id == drone_id:
-                        if drone.current_zone == zone_a:
-                            count += 1
-                        break
-        return count
+        moves: dict[str, str],
+    ) -> dict[str, str]:
+        """Format real movement output before drone states mutate."""
+        output: dict[str, str] = {}
+        drones_by_id = {drone.drone_id: drone for drone in drones}
+
+        for drone_id, destination in moves.items():
+            drone = drones_by_id[drone_id]
+            destination_zone = self.graph.get_zone(destination)
+            if destination_zone is None:
+                raise SchedulingError(f"Zone not found: {destination}")
+            if (
+                drone.state != DroneState.IN_TRANSIT_RESTRICTED
+                and destination_zone.zone_type == ZoneType.RESTRICTED
+            ):
+                output[drone_id] = (
+                    f"{drone_id}-{drone.current_zone}-{destination}"
+                )
+            else:
+                output[drone_id] = f"{drone_id}-{destination}"
+
+        return output
 
     def _execute_move(
         self, drone: Drone, destination: str

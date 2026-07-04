@@ -18,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.graph import Graph
-from core.parser import Parser
+from core.parser import InputData, Parser
 from core.pathfinder import Pathfinder
 from core.scheduler import Scheduler
 from core.simulator import Simulator
@@ -27,7 +27,7 @@ from models.zone import ZoneCategory
 from visualizer.plotly_visualizer import PlotlyVisualizer
 
 
-def resolve_start_end(parsed) -> tuple[str, str]:
+def resolve_start_end(parsed: InputData) -> tuple[str, str]:
     start_zone = next(
         (z.name for z in parsed.zones.values() if z.category == ZoneCategory.START_HUB),
         None,

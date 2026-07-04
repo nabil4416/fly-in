@@ -11,6 +11,7 @@ import heapq
 from dataclasses import dataclass
 
 from core.graph import Graph
+from models.zone import Zone, ZoneType
 from utils.exceptions import FlyInException
 
 
@@ -116,20 +117,23 @@ class Pathfinder:
             return PathfindingResult(path=[source], cost=0)
 
         # Initialize Dijkstra's algorithm
-        distances: dict[str, int] = {
-            zone: 10000 for zone in self.graph.zones
+        distances: dict[str, float] = {
+            zone: float("inf") for zone in self.graph.zones
         }
         distances[source] = 0
+        priority_scores: dict[str, int] = {
+            zone: 0 for zone in self.graph.zones
+        }
         previous: dict[str, str | None] = {
             zone: None for zone in self.graph.zones
         }
         visited: set[str] = set()
 
-        # Priority queue: (cost, zone_name)
-        pq: list[tuple[int, str]] = [(0, source)]
+        # Priority queue: (cost, -priority_zones, zone_name)
+        pq: list[tuple[float, int, str]] = [(0, 0, source)]
 
         while pq:
-            current_cost, current_zone = heapq.heappop(pq)
+            current_cost, _, current_zone = heapq.heappop(pq)
 
             # Skip if already visited
             if current_zone in visited:
@@ -140,7 +144,7 @@ class Pathfinder:
             if current_zone == destination:
                 path = self._reconstruct_path(previous, destination)
                 return PathfindingResult(
-                    path=path, cost=distances[destination]
+                    path=path, cost=int(distances[destination])
                 )
 
             # Explore neighbors
@@ -161,19 +165,31 @@ class Pathfinder:
                     continue
 
                 new_cost = current_cost + move_cost
+                new_priority_score = priority_scores[current_zone]
+                if neighbor_zone.zone_type == ZoneType.PRIORITY:
+                    new_priority_score += 1
 
                 # Update if we found a better path
-                if new_cost < distances[neighbor]:
+                if (
+                    new_cost < distances[neighbor]
+                    or (
+                        new_cost == distances[neighbor]
+                        and new_priority_score > priority_scores[neighbor]
+                    )
+                ):
                     distances[neighbor] = new_cost
+                    priority_scores[neighbor] = new_priority_score
                     previous[neighbor] = current_zone
-                    heapq.heappush(pq, (new_cost, neighbor))
+                    heapq.heappush(
+                        pq, (new_cost, -new_priority_score, neighbor)
+                    )
 
         # No path found
         raise PathfindingError(
             f"No path found from '{source}' to '{destination}'"
         )
 
-    def _get_movement_cost(self, zone) -> int:  # type: ignore
+    def _get_movement_cost(self, zone: Zone) -> int:
         """Get movement cost to enter a zone.
 
         Args:
@@ -182,9 +198,9 @@ class Pathfinder:
         Returns:
             Movement cost (1 or 2 turns). Returns -1 for blocked zones.
         """
-        if zone.zone_type.value == "blocked":
+        if zone.zone_type == ZoneType.BLOCKED:
             return -1
-        if zone.zone_type.value == "restricted":
+        if zone.zone_type == ZoneType.RESTRICTED:
             return 2
         # normal and priority both cost 1
         return 1
@@ -239,10 +255,41 @@ class Pathfinder:
         if max_paths < 1:
             raise PathfindingError("max_paths must be at least 1")
 
-        # For now, just return the shortest path
-        # This can be extended to find alternative paths
-        try:
-            shortest = self.find_shortest_path(source, destination)
-            return [shortest]
-        except PathfindingError:
-            return []
+        if source not in self.graph.zones:
+            raise PathfindingError(f"Source zone '{source}' not found")
+        if destination not in self.graph.zones:
+            raise PathfindingError(
+                f"Destination zone '{destination}' not found"
+            )
+
+        queue: list[tuple[int, int, list[str]]] = [(0, 0, [source])]
+        results: list[PathfindingResult] = []
+        seen_paths: set[tuple[str, ...]] = set()
+
+        while queue and len(results) < max_paths:
+            cost, priority_penalty, path = heapq.heappop(queue)
+            current = path[-1]
+
+            if current == destination:
+                path_key = tuple(path)
+                if path_key not in seen_paths:
+                    seen_paths.add(path_key)
+                    results.append(PathfindingResult(path=path, cost=cost))
+                continue
+
+            for neighbor in self.graph.get_neighbors(current):
+                if neighbor in path:
+                    continue
+                zone = self.graph.zones[neighbor]
+                move_cost = self._get_movement_cost(zone)
+                if move_cost < 0:
+                    continue
+                new_penalty = priority_penalty
+                if zone.zone_type == ZoneType.PRIORITY:
+                    new_penalty -= 1
+                heapq.heappush(
+                    queue,
+                    (cost + move_cost, new_penalty, path + [neighbor]),
+                )
+
+        return sorted(results, key=lambda result: result.cost)

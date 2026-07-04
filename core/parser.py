@@ -58,22 +58,27 @@ class Parser:
     """
 
     # Regex patterns for parsing
-    NB_DRONES_PATTERN = r"^\s*nb_drones\s*:\s*(\d+)\s*$"
+    NB_DRONES_PATTERN = r"^\s*nb_drones\s*:\s*(-?\d+)\s*$"
     ZONE_PATTERN = (
-        r"^\s*(start_hub|end_hub|hub)\s*:\s*(\w+)\s+(-?\d+)\s+(-?\d+)"
+        r"^\s*(start_hub|end_hub|hub)\s*:\s*([^\s-]+)\s+(-?\d+)\s+(-?\d+)"
         r"\s*(?:\[(.*?)\])?\s*$"
     )
     CONNECTION_PATTERN = (
-        r"^\s*connection\s*:\s*(\w+)-(\w+)\s*(?:\[(.*?)\])?\s*$"
+        r"^\s*connection\s*:\s*([^\s-]+)-([^\s-]+)\s*(?:\[(.*?)\])?\s*$"
     )
-    METADATA_PATTERN = r"(\w+)=([^\s\]]+)"
+    METADATA_PATTERN = r"^(\w+)=([^\s\]]+)$"
     COMMENT_PATTERN = r"^\s*#.*$"
     EMPTY_PATTERN = r"^\s*$"
 
     def __init__(self) -> None:
         """Initialize parser."""
+        self._reset()
+
+    def _reset(self) -> None:
+        """Reset parser state before parsing a new file."""
         self.lines: list[str] = []
         self.current_line_number: int = 0
+        self._seen_content_lines: int = 0
         self.num_drones: int = 0
         self.zones: dict[str, Zone] = {}
         self.connections: list[Connection] = []
@@ -93,6 +98,8 @@ class Parser:
         Raises:
             ParsingError: If file cannot be read or contains errors.
         """
+        self._reset()
+
         try:
             with open(filepath, "r") as f:
                 self.lines = f.readlines()
@@ -130,11 +137,23 @@ class Parser:
         Raises:
             ParsingError: If line is malformed.
         """
+        line = self._strip_comment(line)
+
         # Skip empty lines and comments
         empty_match = re.match(self.EMPTY_PATTERN, line)
         comment_match = re.match(self.COMMENT_PATTERN, line)
         if empty_match or comment_match:
             return
+
+        self._seen_content_lines += 1
+        if self._seen_content_lines == 1 and not re.match(
+            self.NB_DRONES_PATTERN, line
+        ):
+            raise ParsingError(
+                "First non-comment line must be nb_drones: "
+                "<positive_integer>",
+                self.current_line_number,
+            )
 
         # Try each pattern
         if self._try_parse_nb_drones(line):
@@ -234,6 +253,24 @@ class Parser:
                 self.current_line_number,
             ) from e
 
+        # Determine category and validate
+        if zone_category_str == "start_hub":
+            if self.start_zone is not None:
+                raise ParsingError(
+                    "Multiple start_hub zones declared",
+                    self.current_line_number,
+                )
+            category = ZoneCategory.START_HUB
+        elif zone_category_str == "end_hub":
+            if self.end_zone is not None:
+                raise ParsingError(
+                    "Multiple end_hub zones declared",
+                    self.current_line_number,
+                )
+            category = ZoneCategory.END_HUB
+        else:
+            category = ZoneCategory.HUB
+
         # Parse metadata
         metadata = self._parse_metadata(metadata_str)
 
@@ -253,34 +290,19 @@ class Parser:
                 self.current_line_number,
             ) from e
 
-        # Validate max_drones
-        try:
-            max_drones = int(max_drones_str)
-            if max_drones < 1:
-                raise ValueError("Must be at least 1")
-        except ValueError as e:
-            raise ParsingError(
-                f"Invalid max_drones value: {max_drones_str}",
-                self.current_line_number,
-            ) from e
-
-        # Determine category and validate
-        if zone_category_str == "start_hub":
-            if self.start_zone is not None:
-                raise ParsingError(
-                    "Multiple start_hub zones declared",
-                    self.current_line_number,
-                )
-            category = ZoneCategory.START_HUB
-        elif zone_category_str == "end_hub":
-            if self.end_zone is not None:
-                raise ParsingError(
-                    "Multiple end_hub zones declared",
-                    self.current_line_number,
-                )
-            category = ZoneCategory.END_HUB
+        # Validate max_drones only for regular hubs. Start/end are unlimited.
+        if category in (ZoneCategory.START_HUB, ZoneCategory.END_HUB):
+            max_drones = 1
         else:
-            category = ZoneCategory.HUB
+            try:
+                max_drones = int(max_drones_str)
+                if max_drones < 1:
+                    raise ValueError("Must be at least 1")
+            except ValueError as e:
+                raise ParsingError(
+                    f"Invalid max_drones value: {max_drones_str}",
+                    self.current_line_number,
+                ) from e
 
         # Create zone
         zone = Zone(
@@ -395,15 +417,15 @@ class Parser:
             return {}
 
         metadata: dict[str, str] = {}
-        matches = re.findall(self.METADATA_PATTERN, metadata_str)
-
-        if not matches:
-            raise ParsingError(
-                f"Invalid metadata format: [{metadata_str}]",
-                self.current_line_number,
-            )
-
-        for key, value in matches:
+        for token in metadata_str.split():
+            match = re.fullmatch(self.METADATA_PATTERN, token)
+            if not match:
+                raise ParsingError(
+                    f"Invalid metadata format: [{metadata_str}]",
+                    self.current_line_number,
+                )
+            key = match.group(1)
+            value = match.group(2)
             if key in metadata:
                 raise ParsingError(
                     f"Duplicate metadata key: {key}",
@@ -412,6 +434,10 @@ class Parser:
             metadata[key] = value
 
         return metadata
+
+    def _strip_comment(self, line: str) -> str:
+        """Remove inline comments from a line."""
+        return line.split("#", 1)[0].rstrip()
 
     def _validate_final_state(self) -> None:
         """Validate final parsing state.

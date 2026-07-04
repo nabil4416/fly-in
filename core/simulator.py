@@ -12,7 +12,6 @@ from dataclasses import dataclass, field
 from core.graph import Graph
 from core.scheduler import Scheduler, SchedulingResult
 from models.drone import Drone
-from models.enums import DroneState
 from utils.exceptions import FlyInException
 
 
@@ -141,6 +140,7 @@ class Simulator:
         )
         # Output history
         self.turn_output: list[str] = []
+        self.capacity_output: list[str] = []
 
     def run(self) -> SimulationState:
         """Execute the complete simulation.
@@ -187,29 +187,14 @@ class Simulator:
     ) -> None:
         """Process a single turn and generate output."""
         # Build output line for this turn
-        output_parts = []
-        for drone_id, destination in scheduling_result.moves.items():
-            # Find the drone
-            drone = None
-            for d in self.state.drones:
-                if d.drone_id == drone_id:
-                    drone = d
-                    break
-            if drone is None:
-                continue
-            # Determine movement type
-            if drone.state == DroneState.IN_TRANSIT_RESTRICTED:
-                # In transit to restricted zone, show connection
-                output_parts.append(
-                    f"{drone_id}-{drone.current_zone}-{destination}"
-                )
-            else:
-                # Normal movement
-                output_parts.append(f"{drone_id}-{destination}")
+        output_parts = list(scheduling_result.move_outputs.values())
         # Add turn to output if there were movements
         if output_parts:
-            turn_line = f"Turn {turn_number}: {' '.join(output_parts)}"
+            turn_line = " ".join(output_parts)
             self.turn_output.append(turn_line)
+        self.capacity_output.extend(
+            self._format_capacity_info(scheduling_result, turn_number)
+        )
         # Track metrics
         self.state.metrics.drones_per_turn.append(
             len(scheduling_result.moves)
@@ -219,18 +204,47 @@ class Simulator:
     def _calculate_metrics(self) -> None:
         """Calculate final simulation metrics."""
         self.state.metrics.calculate_averages()
-        # Track zone utilization by analyzing drone paths
         zone_peak_occupancy: dict[str, int] = {}
-        for drone in self.state.drones:
-            for zone_name in drone.path:
-                zone_peak_occupancy[zone_name] = (
-                    zone_peak_occupancy.get(zone_name, 0) + 1
+        for result in self.state.moves:
+            for zone_name, occupancy in result.zone_occupancy.items():
+                zone_peak_occupancy[zone_name] = max(
+                    zone_peak_occupancy.get(zone_name, 0),
+                    occupancy,
                 )
         self.state.metrics.zone_utilization = zone_peak_occupancy
 
     def get_output(self) -> str:
         """Get formatted simulation output."""
         return "\n".join(self.turn_output)
+
+    def get_capacity_output(self) -> str:
+        """Get formatted capacity information for each turn."""
+        return "\n".join(self.capacity_output)
+
+    def _format_capacity_info(
+        self,
+        scheduling_result: SchedulingResult,
+        turn_number: int,
+    ) -> list[str]:
+        """Format zone and connection usage for one turn."""
+        lines = [f"Turn {turn_number} capacity:"]
+        for zone_name, zone in self.graph.zones.items():
+            occupancy = scheduling_result.zone_occupancy.get(zone_name, 0)
+            capacity = "unlimited" if zone.is_special_hub else str(
+                zone.max_drones
+            )
+            lines.append(
+                f"Zone {zone_name}: {occupancy}/{capacity} drones"
+            )
+        for conn in self.graph.connections:
+            conn_key = conn.key()
+            display_key = f"{conn_key[0]}-{conn_key[1]}"
+            used = scheduling_result.connection_usage.get(display_key, 0)
+            lines.append(
+                f"Connection {display_key}: "
+                f"{used}/{conn.max_link_capacity} used"
+            )
+        return lines
 
     def get_summary(self) -> str:
         """Get simulation summary with metrics."""

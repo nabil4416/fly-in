@@ -10,6 +10,7 @@ This script orchestrates the entire simulation pipeline:
 """
 
 import sys
+import argparse
 from pathlib import Path
 
 from core.graph import Graph, GraphError
@@ -44,12 +45,18 @@ def main() -> int:
     Returns:
         Exit code: 0 if successful, 1 if error occurred.
     """
-    # Validate arguments
-    if len(sys.argv) != 2:
-        print_error("Usage: python main.py <input_file>")
-        return 1
+    arg_parser = argparse.ArgumentParser(
+        description="Run the Fly-in drone simulation"
+    )
+    arg_parser.add_argument(
+        "--capacity-info",
+        action="store_true",
+        help="print zone and connection capacity usage after simulation",
+    )
+    arg_parser.add_argument("input_file", help="path to a Fly-in map file")
+    args = arg_parser.parse_args()
 
-    input_file = sys.argv[1]
+    input_file = args.input_file
 
     # Check file exists
     if not Path(input_file).exists():
@@ -169,6 +176,15 @@ def main() -> int:
             print("=" * 60)
         else:
             print("⚠️  No movement output generated")
+
+        if args.capacity_info:
+            capacity_output = simulator.get_capacity_output()
+            if capacity_output:
+                print("\n" + "=" * 60)
+                print("CAPACITY INFO")
+                print("=" * 60)
+                print(capacity_output)
+                print("=" * 60)
 
         # Print summary
         summary = simulator.get_summary()

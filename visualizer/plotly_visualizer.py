@@ -164,8 +164,8 @@ class PlotlyVisualizer:
         return fig
 
     def _build_connections_trace(self) -> go.Scatter:
-        x_vals: List[float] = []
-        y_vals: List[float] = []
+        x_vals: List[Optional[float]] = []
+        y_vals: List[Optional[float]] = []
 
         for conn in self._graph.connections:
             zone_a = self._graph.zones.get(conn.zone_a)

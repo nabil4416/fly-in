@@ -43,11 +43,12 @@ viz:
 	@echo "Visualization generated: $(VIZ_OUTPUT)"
 
 lint:
-	-$(FLAKE8) .
-	-$(MYPY) core models utils main.py scripts/visualize.py
+	$(FLAKE8) .
+	$(MYPY) . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
 lint-strict:
-	-$(MYPY) --strict core models utils main.py scripts/visualize.py
+	$(FLAKE8) .
+	$(MYPY) . --strict
 
 test:
 	$(PYTHON) -m $(PYTEST) -v --tb=short

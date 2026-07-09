@@ -421,17 +421,12 @@ class PlotlyVisualizer:
         if not drones:
             return [[]]
 
-        # Track current zone index inside each drone.path
+        # Track current zone index inside each drone.path. SimulationState
+        # stores drones after the run, so drone.current_zone is final state;
+        # visual reconstruction must start from the first path zone.
         path_index_by_drone: Dict[str, int] = {}
         for drone in drones:
-            idx = 0
-            if drone.path:
-                # start at current if known in path else first
-                if drone.current_zone in drone.path:
-                    idx = drone.path.index(drone.current_zone)
-                else:
-                    idx = 0
-            path_index_by_drone[drone.drone_id] = idx
+            path_index_by_drone[drone.drone_id] = 0
 
         # Turn 0: initial snapshot
         turn_states: List[List[_DroneRenderState]] = []
@@ -541,11 +536,7 @@ class PlotlyVisualizer:
 
         path_index_by_drone: Dict[str, int] = {}
         for drone in drones:
-            idx = 0
-            if drone.path:
-                if drone.current_zone in drone.path:
-                    idx = drone.path.index(drone.current_zone)
-            path_index_by_drone[drone.drone_id] = idx
+            path_index_by_drone[drone.drone_id] = 0
 
         timeline: List[List[_DroneRenderState]] = []
         timeline.append(self._snapshot_from_indices(path_index_by_drone))

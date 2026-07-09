@@ -55,15 +55,15 @@ class PlotlyVisualizer:
     """
 
     _ZONE_TYPE_COLORS: Dict[ZoneType, str] = {
-        ZoneType.NORMAL: "#3498db",      # blue
-        ZoneType.RESTRICTED: "#f39c12",  # orange
-        ZoneType.BLOCKED: "#7f8c8d",     # gray
-        ZoneType.PRIORITY: "#9b59b6",    # violet
+        ZoneType.NORMAL: "lightblue",
+        ZoneType.RESTRICTED: "orange",
+        ZoneType.BLOCKED: "gray",
+        ZoneType.PRIORITY: "cyan",
     }
 
     _CATEGORY_OVERRIDE_COLORS: Dict[ZoneCategory, str] = {
-        ZoneCategory.START_HUB: "#2ecc71",  # green
-        ZoneCategory.END_HUB: "#e74c3c",    # red
+        ZoneCategory.START_HUB: "green",
+        ZoneCategory.END_HUB: "green",
     }
 
     _DRONE_COLOR = "#111111"
@@ -593,9 +593,11 @@ class PlotlyVisualizer:
 
     def _zone_color(self, zone: Zone) -> str:
         """Choose color according to requested semantics."""
+        if zone.color:
+            return zone.color
         if zone.category in self._CATEGORY_OVERRIDE_COLORS:
             return self._CATEGORY_OVERRIDE_COLORS[zone.category]
-        return self._ZONE_TYPE_COLORS.get(zone.zone_type, "#95a5a6")
+        return self._ZONE_TYPE_COLORS.get(zone.zone_type, "lightblue")
 
     def _drone_trace_index(self) -> int:
         """Trace index where dynamic drone layer is stored."""
